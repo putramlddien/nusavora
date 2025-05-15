@@ -8,27 +8,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nusavora</title>
     <link href="{% static 'css/output.css' %}" rel="stylesheet" />
+    <style>
+      .home-cover-bg {
+        background: url("/media/home_cover.jpg") center center/cover no-repeat;
+        height: 300px; /* 🔥 Full cover supaya navbar menyatu */
+        width: 100%;
+        position: relative;
+      }
+
+      .navbar-transparent {
+        background: transparent !important;
+        color: white !important;
+        transition: background 0.3s, color 0.3s;
+      }
+
+      .navbar-solid {
+        background: white !important;
+        color: black !important;
+        transition: background 0.3s, color 0.3s;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      }
+
+      .category-image {
+        height: 150px;
+        width: 275px;
+        object-fit: cover;
+        border-radius: 6px;
+      }
+    </style>
   </head>
-  <header class="text-gray-600 body-font">
+  <header
+    id="navbar"
+    class="fixed top-0 left-0 w-full z-50 transition-all duration-300 navbar-transparent"
+  >
     <div
-      class="container mx-auto flex flex-wrap p-5 flex-col md:flex-row items-center"
+      class="container mx-auto flex flex-wrap p-5 flex-row justify-between items-center"
     >
-      <a
-        class="flex title-font font-medium items-center text-gray-900 mb-4 md:mb-0"
-      >
-        <span class="ml-3 text-xl">Nusavora</span>
-      </a>
-      <nav
-        class="md:ml-auto md:mr-auto flex flex-wrap items-center text-base justify-center"
-      >
-        <a class="mr-5 hover:text-gray-900" href="{% url 'home' %}">Home</a>
-        <a class="mr-5 hover:text-gray-900">Location</a>
-        <a class="mr-5 hover:text-gray-900">Recomendations</a>
-      </nav>
+      <a class="title-font font-medium text-white text-xl">Nusavora</a>
+
       <button
-        class="inline-flex items-center bg-gray-100 border-0 py-1 px-3 focus:outline-none hover:bg-gray-200 rounded text-base mt-4 md:mt-0"
+        class="inline-flex items-center bg-white text-black border-0 py-2 px-3 focus:outline-none hover:bg-gray-200 rounded text-base"
       >
-        Login
+        Masuk/Daftar
         <svg
           fill="none"
           stroke="currentColor"
@@ -41,6 +62,38 @@
           <path d="M5 12h14M12 5l7 7-7 7"></path>
         </svg>
       </button>
+
+      <!-- 🔥 Search input hanya ditampilkan di halaman vendor -->
+      {% if request.path != '/' %}
+      <div class="flex items-center space-x-4">
+        <div class="relative">
+          <input
+            type="text"
+            id="navbar-location"
+            class="border p-2 rounded-md"
+            placeholder="Cari lokasi..."
+            autocomplete="off"
+          />
+          <ul
+            id="navbar-location-suggestions"
+            class="bg-white border rounded-md mt-1 absolute z-10 w-full hidden"
+          ></ul>
+        </div>
+        <button
+          id="navbar-location-btn"
+          class="bg-green-500 text-white px-3 py-2 rounded-md"
+          disabled
+        >
+          Cari
+        </button>
+        <button
+          id="navbar-current-btn"
+          class="bg-blue-500 text-white px-3 py-2 rounded-md"
+        >
+          Lokasi Saat Ini
+        </button>
+      </div>
+      {% endif %}
     </div>
   </header>
   <!-- JavaScript -->
@@ -49,6 +102,163 @@
       const mobileMenu = document.getElementById("mobile-menu");
       mobileMenu.classList.toggle("hidden");
     }
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const navbar = document.getElementById("navbar");
+
+      window.addEventListener("scroll", function () {
+        if (window.scrollY > 50) {
+          navbar.classList.remove("navbar-transparent");
+          navbar.classList.add("navbar-solid");
+        } else {
+          navbar.classList.remove("navbar-solid");
+          navbar.classList.add("navbar-transparent");
+        }
+      });
+    });
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      let timeout = null;
+      const input = document.getElementById("navbar-location");
+      const suggestions = document.getElementById(
+        "navbar-location-suggestions"
+      );
+      const searchButton = document.getElementById("navbar-location-btn");
+      const currentButton = document.getElementById("navbar-current-btn");
+
+      function setSelectedLocation(lat, lon) {
+        localStorage.setItem("selectedLat", lat);
+        localStorage.setItem("selectedLon", lon);
+      }
+
+      function goToVendor(lat, lon) {
+        window.location.href = `/vendor/?lat=${lat}&lon=${lon}`;
+      }
+
+      function searchLocation() {
+        let query = input.value.trim();
+        let lat = localStorage.getItem("selectedLat");
+        let lon = localStorage.getItem("selectedLon");
+        if (!query || !lat || !lon || searchButton.disabled) {
+          alert("Silakan pilih lokasi dari rekomendasi terlebih dahulu!");
+          return;
+        }
+        // Simpan ke session
+        fetch("/set-location/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ latitude: lat, longitude: lon }),
+        }).then(() => {
+          goToVendor(lat, lon);
+        });
+      }
+
+      input.addEventListener("input", function () {
+        clearTimeout(timeout);
+        const query = this.value.trim();
+        if (query.length < 2) {
+          suggestions.innerHTML = "";
+          suggestions.style.display = "none";
+          searchButton.disabled = true;
+          return;
+        }
+        timeout = setTimeout(() => {
+          fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+              query
+            )}&addressdetails=1&limit=5`
+          )
+            .then((res) => res.json())
+            .then((data) => {
+              suggestions.innerHTML = "";
+              if (data.length > 0) {
+                suggestions.style.display = "block";
+                data.forEach((item) => {
+                  const li = document.createElement("li");
+                  li.className =
+                    "px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-200";
+                  li.textContent = item.display_name;
+                  li.onclick = () => {
+                    input.value = item.display_name;
+                    suggestions.innerHTML = "";
+                    suggestions.style.display = "none";
+                    setSelectedLocation(item.lat, item.lon);
+                    searchButton.disabled = false;
+                  };
+                  suggestions.appendChild(li);
+                });
+              } else {
+                suggestions.style.display = "none";
+                searchButton.disabled = true;
+              }
+            })
+            .catch(() => {
+              suggestions.innerHTML = "";
+              suggestions.style.display = "none";
+              searchButton.disabled = true;
+            });
+        }, 300);
+      });
+
+      document.addEventListener("click", function (e) {
+        if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+          suggestions.innerHTML = "";
+          suggestions.style.display = "none";
+        }
+      });
+
+      searchButton.onclick = searchLocation;
+
+      currentButton.onclick = function () {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function (position) {
+            let latitude = position.coords.latitude;
+            let longitude = position.coords.longitude;
+            // Simpan ke session
+            fetch("/set-location/", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                latitude: latitude,
+                longitude: longitude,
+              }),
+            }).then(() => {
+              goToVendor(latitude, longitude);
+            });
+          });
+        } else {
+          alert("Browser tidak mendukung geolocation.");
+        }
+      };
+
+      // Default: jika session kosong, ambil current location
+      fetch("/get-location/")
+        .then((res) => res.json())
+        .then((data) => {
+          if (
+            !data.latitude ||
+            !data.longitude ||
+            data.latitude === "Tidak Diketahui"
+          ) {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(function (position) {
+                let latitude = position.coords.latitude;
+                let longitude = position.coords.longitude;
+                fetch("/set-location/", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    latitude: latitude,
+                    longitude: longitude,
+                  }),
+                });
+              });
+            }
+          }
+        });
+    });
   </script>
   <body>
     {% block content %} {% endblock %}
