@@ -1,0 +1,64 @@
+{% extends 'customer/base_customer.html' %}
+{% load static %}
+{% block content %}
+{% load formatting %}
+<div class="container mx-auto py-8">
+  <div class="flex flex-col md:flex-row gap-8">
+    <div class="md:w-2/3">
+      <h2 class="text-2xl font-bold mb-4">{{ restaurant.name }}</h2>
+      <p class="mb-2 text-gray-600">{{ restaurant.address }}</p>
+      <div class="mb-4">
+        <span class="inline-block bg-blue-100 text-blue-700 text-xs rounded px-2 py-0.5 font-semibold">Jarak: {{ distance }} km</span>
+        <span class="inline-block bg-green-100 text-green-700 text-xs rounded px-2 py-0.5 font-semibold">Jam buka: {{ restaurant.opening_hours }}</span>
+      </div>
+      <div class="mb-6">
+        <h3 class="text-lg font-semibold mb-2">Menu</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {% for product in products %}
+          <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
+            <div>
+              <h4 class="font-semibold">{{ product.name }}</h4>
+              <p class="text-gray-500 text-sm mb-1">Rp {{ product.price|rupiah }}</p>
+            </div>
+            <div class="flex gap-2 mt-2">
+              <button @click="addToCart({{ product.id }})" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded">Tambah</button>
+              <button @click="toggleFavorite({{ product.id }})" class="bg-pink-100 text-pink-600 px-2 py-1 rounded">❤</button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="md:w-1/3">
+      <div id="map" class="w-full h-64 rounded"></div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('restaurantDetail', () => ({
+    addToCart(id) {
+      fetch('{% url "cart_update" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+        body: JSON.stringify({ action: 'add', product_id: id, qty: 1 })
+      }).then(() => alert('Ditambahkan ke keranjang!'));
+    },
+    toggleFavorite(id) {
+      fetch('{% url "favorite" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+        body: JSON.stringify({ product_id: id })
+      }).then(() => alert('Status favorit diubah!'));
+    },
+    init() {
+      if (window.L && {{ restaurant.lat|default:'null' }} && {{ restaurant.lng|default:'null' }}) {
+        const map = L.map('map').setView([{{ restaurant.lat }}, {{ restaurant.lng }}], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+        L.marker([{{ restaurant.lat }}, {{ restaurant.lng }}]).addTo(map);
+      }
+    }
+  }))
+})
+</script>
+{% endblock %}
