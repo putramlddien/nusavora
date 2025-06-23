@@ -1,0 +1,23 @@
+{
+  "type": "module",
+  "scripts": {
+    "build": "postcss style.css -o static/css/style.css",
+    "watch": "postcss style.css -o static/css/style.css --watch"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.10",
+    "postcss-cli": "^11.0.1"
+  },
+  "name": "nusavora",
+  "version": "1.0.0",
+  "description": "",
+  "main": "postcss.config.js",
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.10"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

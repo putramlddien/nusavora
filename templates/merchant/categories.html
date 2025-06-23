@@ -1,0 +1,24 @@
+{% extends 'merchant/base_merchant.html' %}
+{% load static %}
+{% block content %}
+<div class="p-6">
+  <h2 class="text-2xl font-bold mb-4">Kategori Produk</h2>
+  <form method="POST" class="mb-6 space-y-3">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div>
+      <label class="block font-medium">Nama Kategori</label>
+      {{ form.name|add_class:"input input-bordered w-full" }}
+    </div>
+    <button type="submit" class="btn btn-primary">Tambah Kategori</button>
+  </form>
+
+  <ul class="space-y-2">
+    {% for category in categories %}
+      <li class="p-3 bg-gray-100 rounded">{{ category.name }}</li>
+    {% empty %}
+      <li class="text-gray-500">Belum ada kategori.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

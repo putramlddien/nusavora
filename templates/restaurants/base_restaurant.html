@@ -1,0 +1,213 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Merchant Dashboard{% endblock %}</title>
+    <link href="{% static 'css/style.css' %}" rel="stylesheet" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      .bg-base-customer {
+        background: url("{% static 'css/base_customer.jpg' %}") center/cover
+          no-repeat;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="flex">
+      <aside
+        class="flex flex-col w-70 h-screen px-4 py-8 overflow-y-auto bg-white border-r rtl:border-r-0 rtl:border-l"
+      >
+        <a href="#" class="mx-auto">
+          <img
+            class="w-auto h-6 sm:h-7"
+            src="{% static 'Logo_Mojura.png' %}"
+            alt="Nusavora Logo"
+          />
+        </a>
+
+        <div class="flex flex-col items-center mt-6 -mx-2">
+          <img
+            class="object-cover w-20 h-20 mx-2 rounded-full"
+            src="https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?ixid=MXwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHw%3D&ixlib=rb-1.2.1&auto=format&fit=crop&w=634&q=80"
+            alt="avatar"
+          />
+          <h4 class="mx-2 mt-2 font-medium text-gray-800">
+            {{ user.full_name }}
+          </h4>
+          <p
+            class="mx-2 mt-1 text-sm font-medium text-gray-600 dark:text-gray-400"
+          >
+            {{ user.email }}
+          </p>
+        </div>
+
+        <div class="flex flex-col justify-between flex-1 mt-6">
+          <nav class="flex flex-col gap-1">
+            <a
+              class="flex items-center px-4 py-2 text-gray-700 bg-gray-100 rounded-lg"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Dashboard</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Restoran Saya</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5.121 17.804A13.937 13.937 0 0112 15c2.5 0 4.847.655 6.879 1.804M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Daftar Menu</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17 9V7a5 5 0 00-10 0v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2z"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Pesanan Masuk</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6m16 0H4"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Transaksi</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Ulasan Pelanggan</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Pengaturan Akun</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="#"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Logout</span>
+            </a>
+          </nav>
+        </div>
+      </aside>
+      <div class="flex-1 p-6 bg-gray-100">
+        {% block content %}
+        <!-- Konten halaman dashboard akan muncul di sini -->
+        {% endblock %}
+      </div>
+    </div>
+  </body>
+</html>

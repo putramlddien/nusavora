@@ -1,0 +1,86 @@
+{% extends "accounts/base_accounts.html" %}
+{% load static %}
+{% block content %}
+
+<section class="bg-white">
+  <div class="container flex items-center justify-center min-h-screen px-6 mx-auto">
+    <form method="POST" class="w-full max-w-md bg-white p-6 rounded-lg shadow-md">
+      {% csrf_token %}
+
+      <div class="flex justify-center mx-auto mb-4">
+        <img class="w-auto h-8 sm:h-10" src="{% static 'images/nusavora_black_logo.png' %}" alt="Nusavora Logo">
+      </div>
+
+      <h2 class="text-center text-xl font-bold text-green-600 mb-2">Daftar Akun Nusavora</h2>
+      <p class="text-sm text-center text-gray-500 mb-6">Bergabung sebagai pelanggan atau mitra restoran.</p>
+
+      {% if form.non_field_errors %}
+        <div class="mb-4 text-sm text-red-600">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <!-- Username -->
+      <div class="mb-4">
+        <label for="username" class="block mb-1 text-sm text-gray-700">Username</label>
+        <input type="text" name="username" id="username" value="{{ request.POST.username }}" required
+          class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:ring-green-400"
+          placeholder="Masukan Username">
+      </div>
+
+      <!-- Full Name -->
+      <div class="mb-4">
+        <label for="full_name" class="block mb-1 text-sm text-gray-700">Nama Lengkap</label>
+        <input type="text" name="full_name" id="full_name" value="{{ request.POST.full_name }}" required
+          class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:ring-green-400"
+          placeholder="Nama lengkap sesuai KTP atau identitas lainnya">
+      </div>
+
+      <!-- Email -->
+      <div class="mb-4">
+        <label for="email" class="block mb-1 text-sm text-gray-700">Email</label>
+        <input type="email" name="email" id="email" value="{{ request.POST.email }}" required
+          class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:ring-green-400"
+          placeholder="Alamat email aktif kamu">
+      </div>
+
+      <!-- Password -->
+      <div class="mb-4">
+        <label for="password" class="block mb-1 text-sm text-gray-700">Password</label>
+        <input type="password" name="password" id="password" required
+          class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:ring-green-400"
+          placeholder="Buat password rahasia">
+      </div>
+
+      <!-- Konfirmasi Password -->
+      <div class="mb-4">
+        <label for="password_confirm" class="block mb-1 text-sm text-gray-700">Konfirmasi Password</label>
+        <input type="password" name="password_confirm" id="password_confirm" required
+          class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:ring-green-400"
+          placeholder="Ulangi password di atas">
+      </div>
+
+      <!-- Role -->
+      <div class="mb-6">
+        <label for="role" class="block mb-1 text-sm text-gray-700">Daftar Sebagai</label>
+        <select name="role" id="role" class="block w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring focus:ring-green-400">
+          <option value="customer" {% if request.POST.role == "customer" %}selected{% endif %}>Customer</option>
+          <option value="merchant" {% if request.POST.role == "merchant" %}selected{% endif %}>Merchant</option>
+        </select>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit"
+        class="w-full px-6 py-3 text-sm font-medium tracking-wide text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-300">
+        Daftar Sekarang
+      </button>
+
+      <div class="mt-6 text-center text-sm">
+        Sudah punya akun?
+        <a href="{% url 'customer_login' %}" class="text-green-600 hover:underline">Masuk di sini</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'merchant/base_merchant.html' %}
+{% load widget_tweaks %}
+{% block content %}
+<div class="p-6">
+  <h2 class="text-2xl font-bold mb-4">{{ title }}</h2>
+  <form method="POST" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-xl">
+  {% csrf_token %}
+  {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}" class="block mb-1 text-sm font-semibold text-gray-700">
+        {{ field.label }}
+      </label>
+      {{ field|add_class:"w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-800 bg-white transition" }}
+      {% if field.help_text %}
+        <p class="text-xs text-gray-500 mt-1">{{ field.help_text }}</p>
+      {% endif %}
+      {% if field.errors %}
+        <p class="text-red-500 text-sm mt-1">{{ field.errors|striptags }}</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <div class="text-right pt-4">
+    <button type="submit" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg transition">
+      💾 Simpan
+    </button>
+  </div>
+</form>
+</div>
+{% endblock %}

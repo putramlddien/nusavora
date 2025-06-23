@@ -1,0 +1,12 @@
+{% extends 'merchant/base_merchant.html' %}
+{% block content %}
+<div class="p-6">
+  <h2 class="text-xl font-bold mb-4">Konfirmasi Hapus</h2>
+  <p>Yakin ingin menghapus produk <strong>{{ product.name }}</strong>?</p>
+  <form method="POST">
+    {% csrf_token %}
+    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded">Ya, Hapus</button>
+    <a href="{% url 'product_list' %}" class="ml-4 text-gray-600">Batal</a>
+  </form>
+</div>
+{% endblock %}

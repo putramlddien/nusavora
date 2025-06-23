@@ -1,0 +1,72 @@
+{% extends 'merchant/base_merchant.html' %}
+{% load static %}
+{% block content %}
+<div class="p-6">
+  <h2 class="text-2xl font-bold mb-4">Produk Saya</h2>
+
+  <div class="flex items-center gap-4 mb-4">
+    <a href="{% url 'product_create' %}" class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+      + Tambah Produk
+    </a>
+    <button onclick="toggleModal('modalKategori')" class="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+      + Tambah Kategori
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for product in products %}
+      <div class="bg-white p-4 rounded shadow">
+        <img src="{{ product.image.url }}" class="w-full h-32 object-cover mb-2 rounded" alt="{{ product.name }}">
+        <h3 class="font-semibold">{{ product.name }}</h3>
+        <p class="text-sm text-gray-500 mb-1">{{ product.category }}</p>
+        <p class="text-sm text-gray-700 mb-2">{{ product.description|truncatechars:50 }}</p>
+        <p class="font-bold text-blue-600">Rp {{ product.price }}</p>
+        <div class="flex justify-between mt-4">
+  <a href="{% url 'product_update' product.pk %}" class="text-sm bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded transition">
+    Edit
+  </a>
+
+  <form method="POST" action="{% url 'product_delete' product.pk %}" onsubmit="return confirm('Yakin ingin menghapus produk ini?');">
+    {% csrf_token %}
+    <button type="submit" class="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition">
+      Hapus
+    </button>
+  </form>
+</div>
+      </div>
+    {% empty %}
+      <p>Belum ada produk.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- MODAL TAMBAH KATEGORI -->
+<div id="modalKategori" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
+  <div class="bg-white p-6 rounded-lg w-full max-w-md shadow-lg animate-fadeIn">
+    <h3 class="text-xl font-semibold mb-4">Tambah Kategori</h3>
+    <form method="POST" action="{% url 'category_create' %}" class="space-y-4">
+      {% csrf_token %}
+      {{ category_form.non_field_errors }}
+      <div>
+        <label class="block text-sm font-medium">Nama Kategori</label>
+        {{ category_form.name }}
+        {% if category_form.name.errors %}
+          <p class="text-red-500 text-sm">{{ category_form.name.errors|striptags }}</p>
+        {% endif %}
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="toggleModal('modalKategori')" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Batal</button>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function toggleModal(id) {
+    const modal = document.getElementById(id);
+    modal.classList.toggle('hidden');
+    modal.classList.toggle('flex');
+  }
+</script>
+{% endblock %}
