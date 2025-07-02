@@ -1,7 +1,7 @@
 {% load static %}
 {% load utils %}
 <!DOCTYPE html>
-<html lang="id" x-data="landingDrawers()">
+<html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,10 +10,175 @@
   <link href="https://cdn.jsdelivr.net/npm/flowbite@2.3.0/dist/flowbite.min.css" rel="stylesheet" />
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script>
+  // Alpine store cartStore harus didefinisikan di head agar tersedia di semua halaman
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('cartStore', {
+      cartItems: [],
+      cartCount: 0,
+      totalPrice: 0,
+      restaurant_id: null,
+      drawer: null,
+      orderHistory: [],
+      favorites: [],
+      showSwitchModal: false,
+      pendingAdd: null,
+      checkoutLocked: false,
+      getQty(id) {
+        const item = this.cartItems.find(item => item.id == id);
+        return item ? item.qty : 0;
+      },
+      openDrawer(type) {
+        this.drawer = type;
+        if (type === 'cart') this.fetchCart();
+        if (type === 'history') this.fetchOrderHistory && this.fetchOrderHistory();
+        if (type === 'favorite') this.fetchFavorites && this.fetchFavorites();
+      },
+      addToCart(id, qty=1, product_restaurant_id=null) {
+        if (this.checkoutLocked) return; // Lock add
+        if (!this.cartItems.length || !this.restaurant_id || this.restaurant_id === product_restaurant_id) {
+          this._doAddToCart(id, qty);
+        } else {
+          this.pendingAdd = { id, qty, product_restaurant_id };
+          this.showSwitchModal = true;
+        }
+      },
+      confirmSwitchResto() {
+        if (this.pendingAdd && !this.checkoutLocked) {
+          this._doAddToCart(this.pendingAdd.id, this.pendingAdd.qty);
+          this.showSwitchModal = false;
+          this.pendingAdd = null;
+        }
+      },
+      _doAddToCart(id, qty=1) {
+        if (this.checkoutLocked) return; // Lock add
+        fetch('{% url "cart_update" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: JSON.stringify({ action: 'add', product_id: id, qty })
+        }).then(() => {
+          window.dispatchEvent(new Event('cart-updated'));
+        });
+      },
+      decQty(id) {
+        if (this.checkoutLocked) return;
+        fetch('{% url "cart_update" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: JSON.stringify({ action: 'dec', product_id: id })
+        }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
+      },
+      incQty(id) {
+        if (this.checkoutLocked) return;
+        fetch('{% url "cart_update" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: JSON.stringify({ action: 'inc', product_id: id })
+        }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
+      },
+      removeItem(id) {
+        if (this.checkoutLocked) return;
+        fetch('{% url "cart_update" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: JSON.stringify({ action: 'remove', product_id: id })
+        }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
+      },
+      closeDrawer() {
+        this.drawer = null;
+      },
+      syncCheckoutLock() {
+        const orderId = localStorage.getItem('checkout_order_id');
+        const step = localStorage.getItem('checkout_step');
+        if (orderId) {
+          fetch(`/checkout/status/${orderId}/`)
+            .then(res => {
+              if (!res.ok) {
+                localStorage.removeItem('checkout_order_id');
+                localStorage.removeItem('checkout_step');
+                this.checkoutLocked = false;
+              } else {
+                return res.json();
+              }
+            })
+            .then(data => {
+              if (data && (data.status === 'expired' || data.status === 'paid' || data.status === undefined)) {
+                localStorage.removeItem('checkout_order_id');
+                localStorage.removeItem('checkout_step');
+                this.checkoutLocked = false;
+              }
+            })
+            .catch(() => {
+              localStorage.removeItem('checkout_order_id');
+              localStorage.removeItem('checkout_step');
+              this.checkoutLocked = false;
+            });
+        }
+      },
+      fetchCart() {
+        fetch('{% url "cart_update" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: JSON.stringify({ action: 'get' })
+        })
+        .then(res => res.json())
+        .then(data => {
+          this.cartItems = data.items || [];
+          this.cartCount = data.cartCount || 0;
+          this.totalPrice = data.totalPrice || 0;
+          this.restaurant_id = data.restaurant_id || null;
+          // Lock cart jika ada order_id & step instruction di localStorage
+          const orderId = localStorage.getItem('checkout_order_id');
+          const step = localStorage.getItem('checkout_step');
+          this.checkoutLocked = !!(orderId && step === 'instruction');
+          if (!orderId || !step) this.checkoutLocked = false;
+          this.syncCheckoutLock();
+        });
+      },
+      fetchOrderHistory() { this.orderHistory = this.orderHistory || []; },
+      fetchFavorites() { this.favorites = this.favorites || []; },
+      lockCheckout(order_id, step) {
+        if (order_id && step === 'instruction') {
+          localStorage.setItem('checkout_order_id', order_id);
+          localStorage.setItem('checkout_step', 'instruction');
+          this.checkoutLocked = true;
+        }
+      },
+      unlockCheckout() {
+        localStorage.removeItem('checkout_order_id');
+        localStorage.removeItem('checkout_step');
+        this.checkoutLocked = false;
+      },
+      init() {
+        this.drawer = null;
+        this.fetchCart();
+        this.syncCheckoutLock();
+        window.addEventListener('cart-updated', () => this.fetchCart());
+      }
+    });
+    Alpine.store('cartStore').init();
+  });
+  </script>
   <link href="{% static 'css/style.css' %}" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
     .fade-in { animation: fadeIn 0.5s; }
@@ -24,28 +189,35 @@
     .autocomplete-suggestion:hover { background: #f0f0f0; }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800" x-data
+      x-init="$store.cartStore.fetchCart()">
 <!-- CSRF token for AJAX -->
 <form style="display:none">{% csrf_token %}</form>
 
 <!-- NAVBAR -->
-<header x-data="{ scrolled: false, dropdownOpen: false }"
-        x-init="window.addEventListener('scroll', () => scrolled = window.scrollY > 10)"
-        :class="scrolled ? 'bg-white shadow-md' : 'bg-transparent'"
-        class="fixed top-0 left-0 w-full z-50 transition-all duration-300">
+<header
+  x-data="{ scrolled: false, dropdownOpen: false, isLanding: '{{ is_landing_page|yesno:"true,false" }}' === 'true' }"
+  x-init="isLanding && window.addEventListener('scroll', () => scrolled = window.scrollY > 10)"
+  :class="isLanding ? (scrolled ? 'bg-white shadow-sm' : 'bg-transparent') : 'bg-white shadow-sm'"
+  class="fixed top-0 left-0 w-full z-50 transition-all duration-300 py-2"
+>
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
     <!-- Logo -->
     <a href="/" class="text-xl font-bold text-gray-800 flex items-center gap-2">
-      <img :src="scrolled ? '{% static 'images/nusavora_black_logo.png' %}' : '{% static 'images/nusavora_white_logo.png' %}'"
-     alt="Logo" class="h-6 w-auto transition duration-300">
-
+      <img 
+  :src="isLanding 
+          ? (scrolled ? '{% static 'images/nusavora_black_logo.png' %}' : '{% static 'images/nusavora_white_logo.png' %}') 
+          : '{% static 'images/nusavora_black_logo.png' %}'"
+  alt="Logo" 
+  class="h-6 w-auto transition duration-300">
     </a>
 
     <!-- Right Section -->
     <div class="flex items-center gap-4">
       <!-- Cart -->
-      <template x-if="cartItems.length === 0">
-        <button :class="scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-blue-200'" title="Keranjang" @click="openDrawer('cart')" class="transition-colors relative">
+      <template x-if="$store.cartStore.cartItems.length === 0">
+        <button :class="isLanding ? (scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-blue-200') : 'text-gray-700 hover:text-blue-600'"
+        title="Keranjang" @click="$store.cartStore.openDrawer('cart')" class="transition-colors relative">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 
           0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 
@@ -54,11 +226,11 @@
           0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 
           0 .375.375 0 0 1 .75 0Z" />
           </svg>
-          <span x-show="cartCount > 0" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full px-2" x-text="cartCount"></span>
+          <span x-show="$store.cartStore.cartCount > 0" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full px-2" x-text="$store.cartStore.cartCount"></span>
         </button>
       </template>
-      <template x-if="cartItems.length > 0">
-        <button :class="scrolled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white text-green-600 hover:bg-green-700'" class="flex items-center gap-2 px-4 py-2 rounded transition font-semibold shadow" @click="openDrawer('cart')">
+      <template x-if="$store.cartStore.cartItems.length > 0">
+        <button :class="scrolled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white text-green-600 hover:bg-green-700'" class="flex items-center gap-2 px-4 py-2 rounded transition font-semibold shadow" @click="$store.cartStore.openDrawer('cart')">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 
           0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 
@@ -66,27 +238,29 @@
           0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 
           0 .375.375 0 0 1 .75 0Z" />
           </svg>
-          <span>Total Harga: Rp <span x-text="totalPrice.toLocaleString('id-ID')"></span></span>
+          <span>Total Harga: Rp <span x-text="$store.cartStore.totalPrice.toLocaleString('id-ID')"></span></span>
         </button>
       </template>
 
 
       <!-- Riwayat -->
-      <button :class="scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-blue-200'" title="Riwayat Pesanan" @click="openDrawer('history')" class="relative transition-colors">
+      <button :class="isLanding ? (scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-blue-200') : 'text-gray-700 hover:text-blue-600'"
+      title="Riwayat Pesanan" @click="$store.cartStore.openDrawer('history')" class="relative transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
           <path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75" />
         </svg>
       </button>
 
       <!-- Favorite Menu -->
-      <button :class="scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-blue-200'" title="Favorite" @click="openDrawer('favorite')" class="relative transition-colors">
+      <button :class="isLanding ? (scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-blue-200') : 'text-gray-700 hover:text-blue-600'"
+      title="Favorite" @click="$store.cartStore.openDrawer('favorite')" class="relative transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
         </svg>
       </button>
 
       <!-- Profil -->
-      <div class="relative" @click.away="profileOpen = false">
+      <div class="relative" x-data="{ profileOpen: false }" @click.away="profileOpen = false">
   {% if request.user.is_authenticated %}
     <!-- AVATAR: Inisial Nama -->
     <button @click="profileOpen = !profileOpen" class="focus:outline-none">
@@ -136,53 +310,78 @@
 </header>
 
 <!-- CART DRAWER -->
-<div x-show="drawer === 'cart'" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex justify-end">
-  <div class="fixed inset-0 bg-black/30" @click="closeDrawer"></div>
-  <div class="relative w-100 max-w-full h-full bg-white shadow-lg flex flex-col" @click.away="closeDrawer" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+<div x-show="$store.cartStore.drawer === 'cart'" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex justify-end">
+  <div class="fixed inset-0 bg-black/30" @click="$store.cartStore.closeDrawer()"></div>
+  <div class="relative w-100 max-w-full h-full bg-white shadow-lg flex flex-col" @click.away="$store.cartStore.closeDrawer()" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
     <div class="flex items-center justify-between p-4 border-b">
       <h2 class="text-lg font-bold text-black">Keranjang</h2>
-      <button @click="closeDrawer" class="text-2xl">&times;</button>
+      <button @click="$store.cartStore.closeDrawer()" class="text-2xl">&times;</button>
     </div>
     <div class="flex-1 overflow-y-auto p-4">
-      <template x-for="item in cartItems" :key="item.id">
-        <div class="flex items-center justify-between mb-3 border-b pb-2">
-          <div>
-            <div class="font-semibold" x-text="item.name"></div>
-            <div class="text-xs text-gray-500" x-text="'Rp ' + item.price.toLocaleString('id-ID')"></div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button @click="decQty(item.id)" class="px-2 py-1 bg-gray-200 rounded">-</button>
-            <span x-text="item.qty"></span>
-            <button @click="incQty(item.id)" class="px-2 py-1 bg-gray-200 rounded">+</button>
-          </div>
-          <button @click="removeItem(item.id)" class="ml-2 text-red-500">❌</button>
-        </div>
-      </template>
-      <div x-show="cartItems.length === 0" class="text-center text-gray-400 mt-8">Keranjang kosong.</div>
+      <template x-for="item in $store.cartStore.cartItems" :key="item.id">
+  <div class="flex gap-3 items-center bg-white rounded-lg shadow-sm mb-4 p-3 border">
+    <!-- Gambar Produk -->
+    <img :src="item.image || '{% static 'images/default_product.jpg' %}'" alt="" class="w-14 h-14 object-cover rounded-lg border" />
+    <!-- Info Produk -->
+    <div class="flex-1">
+      <div class="font-semibold text-gray-800" x-text="item.name"></div>
+      <div class="text-sm text-gray-500" x-text="'Rp ' + item.price.toLocaleString('id-ID')"></div>
+    </div>
+    <!-- Qty Control -->
+    <div class="flex items-center gap-1">
+      <button
+        @click="$store.cartStore.decQty(item.id)"
+        class="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-green-100 text-green-600 font-bold text-lg transition disabled:opacity-50"
+        :disabled="item.qty === 1 || $store.cartStore.checkoutLocked"
+        aria-label="Kurangi"
+      >-</button>
+      <span class="px-2 font-semibold text-gray-700" x-text="item.qty"></span>
+      <button
+        @click="$store.cartStore.incQty(item.id)"
+        class="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-green-100 text-green-600 font-bold text-lg transition"
+        :disabled="$store.cartStore.checkoutLocked"
+        aria-label="Tambah"
+      >+</button>
+    </div>
+    <!-- Tombol Hapus -->
+    <button
+      @click="$store.cartStore.removeItem(item.id)"
+      class="ml-2 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-full w-7 h-7 flex items-center justify-center transition"
+      :disabled="$store.cartStore.checkoutLocked"
+      aria-label="Hapus"
+    >✕</button>
+  </div>
+</template>
+      <div x-show="$store.cartStore.cartItems.length === 0" class="text-center text-gray-400 mt-8">Keranjang kosong.</div>
     </div>
     <div class="p-4 border-t">
       <div class="flex justify-between font-bold mb-2">
         <span>Total</span>
-        <span x-text="'Rp ' + totalPrice.toLocaleString('id-ID')"></span>
+        <span x-text="'Rp ' + $store.cartStore.totalPrice.toLocaleString('id-ID')"></span>
       </div>
       <div class="flex gap-2">
-        <a :href="cartItems.length > 0 ? '' : '#'" class="flex-1 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded text-center" :class="{ 'opacity-50 pointer-events-none': cartItems.length === 0 }">Checkout</a>
-        <button @click="closeDrawer" class="flex-1 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">Tutup</button>
+        <template x-if="$store.cartStore.checkoutLocked">
+          <a :href="`/checkout/?step=instruction&order_id=${localStorage.getItem('checkout_order_id')}`" class="flex-1 bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded text-center">Lanjutkan Pembayaran</a>
+        </template>
+        <template x-if="!$store.cartStore.checkoutLocked">
+          <a href="{% url 'checkout' %}" class="flex-1 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded text-center" :class="{ 'opacity-50 pointer-events-none': $store.cartStore.cartItems.length === 0 }">Checkout</a>
+        </template>
+        <button @click="$store.cartStore.closeDrawer()" class="flex-1 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">Tutup</button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- HISTORY DRAWER -->
-<div x-show="drawer === 'history'" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex justify-end">
-  <div class="fixed inset-0 bg-black/30" @click="closeDrawer"></div>
-  <div class="relative w-100 max-w-full h-full bg-white shadow-lg flex flex-col" @click.away="closeDrawer" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+<div x-show="$store.cartStore.drawer === 'history'" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex justify-end">
+  <div class="fixed inset-0 bg-black/30" @click="$store.cartStore.closeDrawer()"></div>
+  <div class="relative w-100 max-w-full h-full bg-white shadow-lg flex flex-col" @click.away="$store.cartStore.closeDrawer()" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
     <div class="flex items-center justify-between p-4 border-b">
       <h2 class="text-lg font-bold text-black">Riwayat Pesanan</h2>
-      <button @click="closeDrawer" class="text-2xl">&times;</button>
+      <button @click="$store.cartStore.closeDrawer()" class="text-2xl">&times;</button>
     </div>
     <div class="flex-1 overflow-y-auto p-4">
-      <template x-for="order in orderHistory" :key="order.id">
+      <template x-for="order in $store.cartStore.orderHistory" :key="order.id">
         <div class="mb-4 border-b pb-2">
           <div class="font-semibold">Pesanan #<span x-text="order.id"></span></div>
           <div class="text-xs text-gray-500" x-text="order.created_at"></div>
@@ -199,21 +398,21 @@
           </ul>
         </div>
       </template>
-      <div x-show="orderHistory.length === 0" class="text-center text-gray-400 mt-8">Belum ada riwayat pesanan.</div>
+      <div x-show="$store.cartStore.orderHistory.length === 0" class="text-center text-gray-400 mt-8">Belum ada riwayat pesanan.</div>
     </div>
   </div>
 </div>
 
 <!-- FAVORITE DRAWER -->
-<div x-show="drawer === 'favorite'" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex justify-end">
-  <div class="fixed inset-0 bg-black/30" @click="closeDrawer"></div>
-  <div class="relative w-100 max-w-full h-full bg-white shadow-lg flex flex-col" @click.away="closeDrawer" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+<div x-show="$store.cartStore.drawer === 'favorite'" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex justify-end">
+  <div class="fixed inset-0 bg-black/30" @click="$store.cartStore.closeDrawer()"></div>
+  <div class="relative w-100 max-w-full h-full bg-white shadow-lg flex flex-col" @click.away="$store.cartStore.closeDrawer()" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
     <div class="flex items-center justify-between p-4 border-b">
       <h2 class="text-lg font-bold text-black">Menu Favorit</h2>
-      <button @click="closeDrawer" class="text-2xl">&times;</button>
+      <button @click="$store.cartStore.closeDrawer()" class="text-2xl">&times;</button>
     </div>
     <div class="flex-1 overflow-y-auto p-4">
-      <template x-for="fav in favorites" :key="fav.id">
+      <template x-for="fav in $store.cartStore.favorites" :key="fav.id">
         <div class="mb-4 border-b pb-2 flex items-center gap-2">
           <img :src="fav.image" class="h-10 w-10 object-cover rounded" alt="">
           <div>
@@ -222,25 +421,24 @@
           </div>
         </div>
       </template>
-      <div x-show="favorites.length === 0" class="text-center text-gray-400 mt-8">Belum ada menu favorit.</div>
+      <div x-show="$store.cartStore.favorites.length === 0" class="text-center text-gray-400 mt-8">Belum ada menu favorit.</div>
     </div>
   </div>
 </div>
 
-<!-- PROFILE MODAL -->
-<div x-show="profileModal" x-transition.opacity x-cloak class="fixed inset-0 z-50 flex items-center justify-center">
-  <div class="fixed inset-0 bg-black/30" @click="closeProfileModal"></div>
-  <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative" @click.away="closeProfileModal">
-    <button @click="closeProfileModal" class="absolute top-2 right-2 text-2xl">&times;</button>
-    <h2 class="text-xl font-bold mb-4">Profil Saya</h2>
-    <div class="flex items-center gap-4 mb-4">
-      <img src="https://randomuser.me/api/portraits/men/75.jpg" class="w-16 h-16 rounded-full border-2 border-white shadow" alt="Avatar" />
-      <div>
-        <div class="font-semibold">John Doe</div>
-        <div class="text-gray-500 text-sm">johndoe@email.com</div>
-      </div>
+<div
+  x-show="$store.cartStore.showSwitchModal"
+  x-cloak
+  class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+  style="display: none"
+>
+  <div class="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full">
+    <h2 class="text-lg font-bold mb-2">Ganti Restoran?</h2>
+    <p class="mb-4">Cart hanya bisa berisi produk dari satu restoran. Apakah Anda ingin mengganti item di cart dengan produk dari restoran ini?</p>
+    <div class="flex gap-2 justify-end">
+      <button @click="$store.cartStore.confirmSwitchResto()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded">Ganti</button>
+      <button @click="$store.cartStore.showSwitchModal = false" class="bg-gray-200 px-4 py-2 rounded">Batal</button>
     </div>
-    <div class="text-sm text-gray-600">Edit profil dan pengaturan akun akan tersedia di sini.</div>
   </div>
 </div>
 
@@ -343,75 +541,165 @@
     }
   }
 </script>
-
-
 <script>
-function landingDrawers() {
-  return {
-    drawer: null,
+document.addEventListener('alpine:init', () => {
+  Alpine.store('cartStore', {
     cartItems: [],
     cartCount: 0,
     totalPrice: 0,
+    restaurant_id: null,
+    drawer: null,
     orderHistory: [],
     favorites: [],
-    profileOpen: false,
-    profileModal: false,
+    showSwitchModal: false,
+    pendingAdd: null,
+    checkoutLocked: false,
+    getQty(id) {
+      const item = this.cartItems.find(item => item.id == id);
+      return item ? item.qty : 0;
+    },
     openDrawer(type) {
       this.drawer = type;
       if (type === 'cart') this.fetchCart();
-      if (type === 'history') this.fetchOrderHistory();
-      if (type === 'favorite') this.fetchFavorites();
+      if (type === 'history') this.fetchOrderHistory && this.fetchOrderHistory();
+      if (type === 'favorite') this.fetchFavorites && this.fetchFavorites();
     },
-    closeDrawer() { this.drawer = null; },
-    openProfileModal() { this.profileModal = true; },
-    closeProfileModal() { this.profileModal = false; },
+    addToCart(id, qty=1, product_restaurant_id=null) {
+      if (this.checkoutLocked) return; // Lock add
+      if (!this.cartItems.length || !this.restaurant_id || this.restaurant_id === product_restaurant_id) {
+        this._doAddToCart(id, qty);
+      } else {
+        this.pendingAdd = { id, qty, product_restaurant_id };
+        this.showSwitchModal = true;
+      }
+    },
+    confirmSwitchResto() {
+      if (this.pendingAdd && !this.checkoutLocked) {
+        this._doAddToCart(this.pendingAdd.id, this.pendingAdd.qty);
+        this.showSwitchModal = false;
+        this.pendingAdd = null;
+      }
+    },
+    _doAddToCart(id, qty=1) {
+      if (this.checkoutLocked) return; // Lock add
+      fetch('{% url "cart_update" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ action: 'add', product_id: id, qty })
+      }).then(() => {
+        window.dispatchEvent(new Event('cart-updated'));
+      });
+    },
+    decQty(id) {
+        if (this.checkoutLocked) return;
+      fetch('{% url "cart_update" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ action: 'dec', product_id: id })
+      }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
+    },
+    incQty(id) {
+      if (this.checkoutLocked) return;
+      fetch('{% url "cart_update" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ action: 'inc', product_id: id })
+      }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
+    },
+    removeItem(id) {
+      if (this.checkoutLocked) return;
+      fetch('{% url "cart_update" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ action: 'remove', product_id: id })
+      }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
+    },
+    closeDrawer() {
+      this.drawer = null;
+    },
+    syncCheckoutLock() {
+      const orderId = localStorage.getItem('checkout_order_id');
+      const step = localStorage.getItem('checkout_step');
+      if (orderId) {
+        fetch(`/checkout/status/${orderId}/`)
+          .then(res => {
+            if (!res.ok) {
+              localStorage.removeItem('checkout_order_id');
+              localStorage.removeItem('checkout_step');
+              this.checkoutLocked = false;
+            } else {
+              return res.json();
+            }
+          })
+          .then(data => {
+            if (data && (data.status === 'expired' || data.status === 'paid' || data.status === undefined)) {
+              localStorage.removeItem('checkout_order_id');
+              localStorage.removeItem('checkout_step');
+              this.checkoutLocked = false;
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem('checkout_order_id');
+            localStorage.removeItem('checkout_step');
+            this.checkoutLocked = false;
+          });
+      }
+    },
     fetchCart() {
       fetch('{% url "cart_update" %}', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
         body: JSON.stringify({ action: 'get' })
       })
       .then(res => res.json())
       .then(data => {
-        if (data.items) {
-          this.cartItems = data.items;
-          this.cartCount = data.cartCount;
-          this.totalPrice = data.totalPrice;
-        }
+        this.cartItems = data.items || [];
+        this.cartCount = data.cartCount || 0;
+        this.totalPrice = data.totalPrice || 0;
+        this.restaurant_id = data.restaurant_id || null;
+        // Lock cart jika ada order_id & step instruction di localStorage
+        const orderId = localStorage.getItem('checkout_order_id');
+        const step = localStorage.getItem('checkout_step');
+        this.checkoutLocked = !!(orderId && step === 'instruction');
+        if (!orderId || !step) this.checkoutLocked = false;
+        this.syncCheckoutLock();
       });
     },
-    incQty(id) {
-      this.updateCart(id, 'add', 1);
-    },
-    decQty(id) {
-      this.updateCart(id, 'update', -1);
-    },
-    removeItem(id) {
-      this.updateCart(id, 'remove');
-    },
-    updateCart(id, action, qty=1) {
-      fetch('{% url "cart_update" %}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
-        body: JSON.stringify({ action: action, product_id: id, qty: qty })
-      })
-      .then(res => res.json())
-      .then(data => {
-        this.fetchCart();
-      });
-    },
-    fetchOrderHistory() {
-      fetch('{% url "order_history" %}')
-        .then(res => res.json())
-        .then(data => { this.orderHistory = data.orders || []; });
-    },
-    fetchFavorites() {
-      fetch('{% url "favorite" %}')
-        .then(res => res.json())
-        .then(data => { this.favorites = data.favorites || []; });
-    },
+
+    fetchOrderHistory() { this.orderHistory = this.orderHistory || []; },
+    fetchFavorites() { this.favorites = this.favorites || []; },
+
+    init() {
+      this.drawer = null;
+      this.fetchCart();
+      this.syncCheckoutLock();
+      window.addEventListener('cart-updated', () => this.fetchCart());
+    }
+  });
+  Alpine.store('cartStore').init();
+});
+</script>
+<script>
+window.addEventListener('pageshow', function(event) {
+  if (window.Alpine && Alpine.store('cartStore')) {
+    Alpine.store('cartStore').fetchCart();
   }
-}
+});
 </script>
 
 <script>
@@ -424,36 +712,93 @@ function locationForm() {
     showSuggestions: false,
     map: null,
     marker: null,
+
     searchLocation() {
-      if (this.address.length < 3) { this.suggestions = []; return; }
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.address)}`)
+      if (this.address.length < 3) {
+        this.suggestions = [];
+        this.showSuggestions = true;
+        return;
+      }
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.address)}&countrycodes=id`)
         .then(res => res.json())
-        .then(data => { this.suggestions = data; this.showSuggestions = true; });
+        .then(data => {
+          this.suggestions = data;
+          this.showSuggestions = true;
+        });
     },
+
     selectSuggestion(item) {
       this.address = item.display_name;
       this.lat = parseFloat(item.lat);
       this.lng = parseFloat(item.lon);
       this.suggestions = [];
       this.showSuggestions = false;
-      this.updateMap();
+      this.updateMap && this.updateMap();
+      // AUTO SUBMIT
+      this.submitLocation();
     },
-    hideSuggestions() { setTimeout(() => { this.showSuggestions = false; }, 200); },
-    useCurrentLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          this.lat = pos.coords.latitude;
-          this.lng = pos.coords.longitude;
-          this.address = 'Lokasi Saya';
-          this.updateMap();
+
+    // Lokasi Saat Ini: gunakan reverse geocoding untuk dapat address
+    selectCurrentLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      this.lat = pos.coords.latitude;
+      this.lng = pos.coords.longitude;
+      // Loading state bisa ditambah di sini
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.lat}&lon=${this.lng}`)
+        .then(res => res.json())
+        .then(data => {
+          // LOG HASILNYA DULU
+          console.log('Reverse Geocode Result:', data);
+          // Safety check, jangan langsung pakai display_name
+          if (data && data.display_name) {
+            this.address = data.display_name;
+            this.suggestions = [];
+            this.showSuggestions = false;
+            this.updateMap && this.updateMap();
+            this.submitLocation();
+          } else {
+            // TAMPILKAN LAT LNG SUPAYA USER TAU
+            this.address = `${this.lat}, ${this.lng}`;
+            alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
+            this.suggestions = [];
+            this.showSuggestions = false;
+            this.updateMap && this.updateMap();
+            this.submitLocation();
+          }
+        })
+        .catch(err => {
+          console.error('Reverse Geocode Error:', err);
+          this.address = `${this.lat}, ${this.lng}`;
+          alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
+          this.suggestions = [];
+          this.showSuggestions = false;
+          this.updateMap && this.updateMap();
+          this.submitLocation();
         });
-      }
+    }, () => {
+      alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
+    });
+  } else {
+    alert('Browser Anda tidak mendukung Geolocation.');
+  }
+},
+
+    hideSuggestions() {
+      setTimeout(() => { this.showSuggestions = false; }, 200);
     },
+
     submitLocation() {
-      if (!this.lat || !this.lng || !this.address) { alert('Pilih lokasi terlebih dahulu!'); return; }
+      if (!this.lat || !this.lng || !this.address) {
+        alert('Pilih lokasi terlebih dahulu!');
+        return;
+      }
       fetch('{% url "set_location" %}', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
         body: JSON.stringify({ address: this.address, lat: this.lat, lng: this.lng })
       })
       .then(res => res.json())
@@ -465,6 +810,7 @@ function locationForm() {
         }
       });
     },
+
     updateMap() {
       if (!this.map) {
         this.map = L.map(this.$refs.map).setView([this.lat || -6.2, this.lng || 106.8], 13);
@@ -475,6 +821,7 @@ function locationForm() {
         this.marker.setLatLng([this.lat, this.lng]);
       }
     },
+
     init() {
       if (this.lat && this.lng) { this.updateMap(); }
     }
@@ -482,5 +829,13 @@ function locationForm() {
 }
 </script>
 
-
+<!-- Hide/disable tombol qty & hapus jika checkoutLocked -->
+<style>
+[x-show="$store.cartStore.checkoutLocked"] ~ * [aria-label="Kurangi"],
+[x-show="$store.cartStore.checkoutLocked"] ~ * [aria-label="Tambah"],
+[x-show="$store.cartStore.checkoutLocked"] ~ * [aria-label="Hapus"] {
+  display: none !important;
+}
+</style>
+</body>
 </html>

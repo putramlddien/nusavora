@@ -1,64 +1,141 @@
 {% extends 'customer/base_customer.html' %}
 {% load static %}
-{% block content %}
 {% load formatting %}
-<div class="container mx-auto py-8">
-  <div class="flex flex-col md:flex-row gap-8">
-    <div class="md:w-2/3">
-      <h2 class="text-2xl font-bold mb-4">{{ restaurant.name }}</h2>
-      <p class="mb-2 text-gray-600">{{ restaurant.address }}</p>
-      <div class="mb-4">
-        <span class="inline-block bg-blue-100 text-blue-700 text-xs rounded px-2 py-0.5 font-semibold">Jarak: {{ distance }} km</span>
-        <span class="inline-block bg-green-100 text-green-700 text-xs rounded px-2 py-0.5 font-semibold">Jam buka: {{ restaurant.opening_hours }}</span>
+{% block content %}
+<div class="bg-gray-50" x-data="{ showModal: false, pendingAdd: null }" x-init="$store.cartStore.fetchCart()">
+  <!-- HERO SECTION -->
+  <section class="relative bg-cover bg-center pt-18 bg-white">
+    <div class="absolute inset-0 white"></div>
+    <div class="container relative z-10 mx-auto px-4 py-10 flex flex-col md:flex-row items-center gap-8">
+      <div class="flex-shrink-0">
+        <img src="{% if restaurant.logo %}{{ restaurant.logo.url }}{% else %}{% static 'images/default_restaurant.jpg' %}{% endif %}" class="w-34 h-28 rounded-md shadow-lg border-4 border-white bg-white object-cover">
       </div>
-      <div class="mb-6">
-        <h3 class="text-lg font-semibold mb-2">Menu</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {% for product in products %}
-          <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
-            <div>
-              <h4 class="font-semibold">{{ product.name }}</h4>
-              <p class="text-gray-500 text-sm mb-1">Rp {{ product.price|rupiah }}</p>
-            </div>
-            <div class="flex gap-2 mt-2">
-              <button @click="addToCart({{ product.id }})" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded">Tambah</button>
-              <button @click="toggleFavorite({{ product.id }})" class="bg-pink-100 text-pink-600 px-2 py-1 rounded">❤</button>
-            </div>
-          </div>
-          {% endfor %}
+      <div>
+        <h1 class="text-3xl md:text-4xl font-bold text-black mb-4">{{ restaurant.name }}</h1>
+        <div class="flex gap-3 text-black/90 items-center mb-2">
+          {% if distance %}
+            <span class="bg-blue-600/90 text-xs px-2 py-1 rounded font-semibold text-white">Jarak {{ distance }} km</span>
+          {% endif %}
+          <span class="text-yellow-400 flex items-center gap-1"><svg class="w-4 h-4 inline" fill="currentColor"><use xlink:href="#star" /></svg> {{ restaurant.avg_rating|floatformat:1 }} ({{ restaurant.total_reviews }})</span>
         </div>
+        <p class="text-black/90 text-sm mb-2">{{ restaurant.address }}</p>
+        <p class="text-black/80 text-xs mt-1">
+  Jam buka: {{ open_time }} - {{ close_time }}
+  <span class="ml-2 px-2 py-0.5 rounded font-bold text-xs
+        {% if is_open_now %}
+          bg-green-600/90 text-white
+        {% else %}
+          bg-red-500/80 text-white
+        {% endif %}">
+    {% if is_open_now %}Buka{% else %}Tutup{% endif %}
+  </span>
+</p>
       </div>
     </div>
-    <div class="md:w-1/3">
-      <div id="map" class="w-full h-64 rounded"></div>
+  </section>
+
+  <!-- STICKY KATEGORI MENU BAR -->
+  <div id="category-bar" class="sticky top-[80px] z-40 bg-white shadow-sm overflow-x-auto py-2">
+    <div class="container mx-auto flex gap-3 px-4">
+      {% for cat in category_list %}
+        <a href="#cat-{{ cat.id }}" class="category-link px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 hover:bg-blue-100 transition whitespace-nowrap">{{ cat.name }}</a>
+      {% endfor %}
     </div>
   </div>
+
+  <!-- SECTION MENU PER KATEGORI -->
+  <div class="container mx-auto px-4 py-8">
+    {% for cat in category_list %}
+      <section id="cat-{{ cat.id }}" class="mb-12 scroll-mt-34">
+        <h2 class="text-xl font-bold mb-4">{{ cat.name }}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+          {% for product in cat.products %}
+            <div class="bg-white hover:shadow-lg flex flex-col justify-between transition"
+                 x-data="{ qty: $store.cartStore.getQty({{ product.id }}) }">
+              <div>
+                {% if product.image %}
+                  <img src="{{ product.image.url }}" class="h-36 w-full object-cover rounded-tr-md mb-3" alt="{{ product.name }}">
+                  {% else %}
+                  <img src="{% static 'images/default_product.jpg' %}" class="h-36 w-full object-cover rounded-md mb-3" alt="{{ cat.name }}">
+                {% endif %}
+                <h3 class="font-semibold text-lg mb-1">{{ product.name }}</h3>
+                <p class="text-gray-600 mb-2">{{ product.description|default_if_none:"-" }}</p>
+                <div class="font-bold text-blue-700 text-lg mb-2">{{ product.price|rupiah }}</div>
+              </div>
+              <div class="flex gap-2 mt-2 items-center">
+  <!-- Jika BELUM ada di cart, tampilkan tombol TAMBAH -->
+  <template x-if="$store.cartStore.getQty({{ product.id }}) === 0">
+    <button
+      @click="$store.cartStore.addToCart({{ product.id }}, 1, {{ product.restaurant.id }})"
+      class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded font-semibold w-full transition"
+      :disabled="$store.cartStore.checkoutLocked"
+    >
+      Tambah
+    </button>
+  </template>
+
+  <!-- Jika SUDAH ada di cart, tampilkan tombol qty dengan - dan + -->
+  <template x-if="$store.cartStore.getQty({{ product.id }}) > 0">
+    <div class="flex items-center gap-1 w-full justify-between bg-green-50 rounded px-2 py-1">
+      <button
+        @click="$store.cartStore.decQty({{ product.id }})"
+        class="bg-green-100 hover:bg-green-200 text-green-700 font-bold px-3 py-1 rounded-full text-lg"
+        :disabled="$store.cartStore.getQty({{ product.id }}) === 1"
+      >-</button>
+      <span class="text-green-700 font-semibold text-base min-w-[24px] text-center">
+        <span x-text="$store.cartStore.getQty({{ product.id }})"></span>
+      </span>
+      <button
+        @click="$store.cartStore.incQty({{ product.id }})"
+        class="bg-green-100 hover:bg-green-200 text-green-700 font-bold px-3 py-1 rounded-full text-lg"
+      >+</button>
+      <button
+        @click="$store.cartStore.removeItem({{ product.id }})"
+        class="ml-2 text-red-800 hover:text-red-900 text-xs transition"
+        title="Hapus"
+      >✕</button>
+    </div>
+  </template>
+
+  <!-- Icon Favorite tetap kanan -->
+  <button
+    @click="$store.cartStore.toggleFavorite({{ product.id }})"
+    class="bg-pink-100 text-pink-600 px-3 py-2 rounded transition"
+    title="Favorite"
+  >❤</button>
 </div>
+
+            </div>
+          {% empty %}
+            <div class="text-gray-400 italic">Belum ada produk.</div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- SCRIPT PLAIN UNTUK MAP & STICKY BAR -->
 <script>
-document.addEventListener('alpine:init', () => {
-  Alpine.data('restaurantDetail', () => ({
-    addToCart(id) {
-      fetch('{% url "cart_update" %}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
-        body: JSON.stringify({ action: 'add', product_id: id, qty: 1 })
-      }).then(() => alert('Ditambahkan ke keranjang!'));
-    },
-    toggleFavorite(id) {
-      fetch('{% url "favorite" %}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
-        body: JSON.stringify({ product_id: id })
-      }).then(() => alert('Status favorit diubah!'));
-    },
-    init() {
-      if (window.L && {{ restaurant.lat|default:'null' }} && {{ restaurant.lng|default:'null' }}) {
-        const map = L.map('map').setView([{{ restaurant.lat }}, {{ restaurant.lng }}], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
-        L.marker([{{ restaurant.lat }}, {{ restaurant.lng }}]).addTo(map);
+document.addEventListener('DOMContentLoaded', () => {
+  // Sticky kategori bar highlight
+  let links = document.querySelectorAll('.category-link');
+  window.addEventListener('scroll', () => {
+    let fromTop = window.scrollY + 80;
+    links.forEach(link => {
+      let section = document.querySelector(link.getAttribute('href'));
+      if (section && section.offsetTop <= fromTop && section.offsetTop + section.offsetHeight > fromTop) {
+        link.classList.add('bg-blue-600', 'text-white');
+      } else {
+        link.classList.remove('bg-blue-600', 'text-white');
       }
-    }
-  }))
-})
+    });
+  });
+
+  // Reset drawer setiap reload
+  if (window.Alpine && Alpine.store('cartStore')) {
+    Alpine.store('cartStore').drawer = null;
+  }
+});
 </script>
 {% endblock %}

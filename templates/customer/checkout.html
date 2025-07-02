@@ -1,0 +1,449 @@
+{% extends 'customer/base_customer.html' %}
+
+{% block content %}
+<script>
+// Auto-redirect ke step instruksi jika ada order_id & step di localStorage (UX restore)
+document.addEventListener('DOMContentLoaded', function() {
+  const orderId = localStorage.getItem('checkout_order_id');
+  const step = localStorage.getItem('checkout_step');
+  if (orderId && step === 'instruction' && !window.location.search.includes('order_id=')) {
+    window.location.href = `/checkout/?step=instruction&order_id=${orderId}`;
+  }
+});
+
+// Helper: update localStorage dan Alpine store saat step berubah
+function setCheckoutStep(order_id, step) {
+  if (order_id && step === 'instruction') {
+    localStorage.setItem('checkout_order_id', order_id);
+    localStorage.setItem('checkout_step', 'instruction');
+    if (window.Alpine && Alpine.store('cartStore')) {
+      Alpine.store('cartStore').checkoutLocked = true;
+    }
+  } else if (step === 'reset') {
+    localStorage.removeItem('checkout_order_id');
+    localStorage.removeItem('checkout_step');
+    if (window.Alpine && Alpine.store('cartStore')) {
+      Alpine.store('cartStore').checkoutLocked = false;
+    }
+  }
+}
+</script>
+<br><br><br><br>
+<div class="container mx-auto px-4 py-8" x-data="checkoutFlow()" x-init="init()">
+
+  <!-- Navbar Stepper -->
+  <div class="flex justify-between mb-8 text-sm md:text-base">
+    <div class="step flex-1 text-center py-2 border-b-4" :class="step === 1 ? 'border-blue-500 text-blue-600' : 'border-gray-200'">Ringkasan Order</div>
+    <div class="step flex-1 text-center py-2 border-b-4" :class="step === 2 ? 'border-blue-500 text-blue-600' : 'border-gray-200'">Metode Pembayaran</div>
+    <div class="step flex-1 text-center py-2 border-b-4" :class="step === 3 ? 'border-blue-500 text-blue-600' : 'border-gray-200'">Instruksi Pembayaran</div>
+    <div class="step flex-1 text-center py-2 border-b-4" :class="step === 4 ? 'border-blue-500 text-blue-600' : 'border-gray-200'">Selesai</div>
+  </div>
+
+<!-- STEP 1: Ringkasan Order -->
+<div x-show="step === 1" class="bg-white shadow-2xl rounded-2xl p-8 max-w-xl mx-auto">
+  <!-- Judul + Resto -->
+  <div class="mb-6 flex items-center gap-4">
+    <img src="{{ cart.restaurant.logo.url|default:'/static/placeholder-restaurant.png' }}" class="w-14 h-14 rounded-2xl object-cover border shadow" alt="{{ cart.restaurant.name }}">
+    <div>
+      <h2 class="text-xl font-bold mb-1">Ringkasan Order</h2>
+      <div class="font-semibold text-gray-700 text-base leading-tight">{{ cart.restaurant.name }}</div>
+      <div class="text-xs text-gray-500">{{ cart.restaurant.address|default:"-" }}</div>
+    </div>
+  </div>
+
+  <!-- Daftar Item -->
+  <ul class="divide-y mb-5">
+    {% for item in cart.items.all %}
+      <li class="flex items-center py-4">
+        <img src="{{ item.product.image.url|default:'/static/placeholder-product.png' }}" class="w-14 h-14 rounded-xl object-cover mr-5 border shadow-sm" alt="{{ item.product.name }}">
+        <div class="flex-1">
+          <div class="font-semibold text-base">{{ item.product.name }}</div>
+          <div class="text-xs text-gray-500 flex items-center gap-2">
+            Qty: <b>{{ item.qty }}</b>
+            {% if item.notes %}<span class="ml-2 bg-yellow-50 text-yellow-600 rounded px-2 py-0.5 text-xs">Catatan: {{ item.notes }}</span>{% endif %}
+            {% if item.is_customizable %}
+              <span class="ml-2 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs">Custom</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="text-right font-bold text-lg text-blue-700 min-w-[80px]">Rp {{ item.product.price|floatformat:0 }}</div>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <!-- Total & Fee -->
+  <div class="flex justify-between items-center mt-6 mb-2 p-4 bg-blue-50 rounded-2xl shadow-inner font-bold text-lg">
+    <span>Total</span>
+    <span class="text-blue-700 text-2xl">Rp {{ cart_total|floatformat:0 }}</span>
+  </div>
+
+  <!-- Note -->
+  <div class="text-xs text-gray-500 italic mb-6 text-center">Periksa kembali pesanan Anda sebelum melanjutkan pembayaran.</div>
+
+  <!-- Button -->
+  <button @click="step = 2" class="w-full mt-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition">
+    <svg fill="none" stroke="currentColor" class="w-6 h-6" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+    </svg>
+    Lanjut Pembayaran
+  </button>
+</div>
+
+
+  <!-- STEP 2: Metode Pembayaran -->
+<div x-show="step === 2" class="bg-white shadow-2xl rounded-2xl p-8 max-w-xl mx-auto">
+  <h2 class="text-xl font-bold mb-6">Pilih Metode Pembayaran</h2>
+  <form @submit.prevent="submitPaymentMethod">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      {% for method, label in methods %}
+        <label class="relative cursor-pointer group">
+          <input type="radio" name="payment_method" x-model="payment_method" value="{{ method }}" class="peer hidden" required>
+          <div class="flex items-center gap-4 rounded-2xl border-2 p-4 transition-all
+                      peer-checked:border-blue-500 peer-checked:bg-blue-50
+                      border-gray-200 hover:border-indigo-400 hover:bg-blue-50 shadow-sm">
+            {% if method == 'bca_va' %}
+              <img src="/static/images/bank/bca.svg" class="w-9 h-10 rounded" alt="BCA">
+            {% elif method == 'bni_va' %}
+              <img src="/static/images/bank/bni.svg" class="w-10 h-10 rounded" alt="BNI">
+            {% elif method == 'bri_va' %}
+              <img src="/static/images/bank/bri.svg" class="w-10 h-10 rounded" alt="BRI">
+            {% elif method == 'permata_va' %}
+              <img src="/static/images/bank/permata.svg" class="w-10 h-10 rounded" alt="Permata">
+            {% elif method == 'qris' %}
+              <img src="/static/images/qris/qris.svg" class="w-10 h-10 rounded" alt="QRIS">
+            {% elif method == 'gopay' %}
+              <img src="/static/images/ewallet/gopay.svg" class="w-10 h-10 rounded" alt="GoPay">
+            {% elif method == 'indomaret' %}
+              <img src="/static/images/cstore/indomaret.svg" class="w-10 h-10 rounded" alt="Indomaret">
+            {% elif method == 'alfamart' %}
+              <img src="/static/images/cstore/alfamart.svg" class="w-10 h-10 rounded" alt="Alfamart">
+            {% else %}
+              <div class="w-10 h-10 bg-gray-100 rounded flex items-center justify-center">
+                <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke-dasharray="2 2"></circle>
+                </svg>
+              </div>
+            {% endif %}
+            <div>
+              <div class="font-semibold text-base">{{ label }}</div>
+              <div class="text-xs text-gray-500">
+                {% if 'va' in method %}Virtual Account
+                {% elif method == 'qris' %}QRIS Digital Payment
+                {% elif method == 'gopay' %}E-Wallet
+                {% elif method == 'indomaret' or method == 'alfamart' %}Convenience Store
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <!-- Checked Circle -->
+          <div class="absolute top-3 right-3 w-6 h-6 rounded-full border-2 border-blue-500 bg-white flex items-center justify-center
+                      text-blue-600 opacity-0 peer-checked:opacity-100 transition-all duration-150">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L9 11.586 6.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l7-7a1 1 0 000-1.414z" clip-rule="evenodd"/></svg>
+          </div>
+        </label>
+      {% endfor %}
+    </div>
+    <button type="submit"
+      class="w-full mt-8 bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition">
+      <svg fill="none" stroke="currentColor" class="w-6 h-6" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+      </svg>
+      Lanjut
+    </button>
+  </form>
+</div>
+
+
+<!-- STEP 3: Instruksi Pembayaran -->
+<div x-show="step === 3" class="bg-white shadow-2xl rounded-2xl p-8 max-w-xl mx-auto">
+
+  <!-- Header dengan logo dan timer -->
+  <div class="flex items-center gap-4 mb-5">
+    <!-- Logo Payment (dinamis) -->
+    <template x-if="payment_method">
+      <img :src="`/static/images/payment-logos/${payment_method}.svg`" class="w-12 h-12 rounded-xl bg-white shadow border" :alt="payment_method">
+    </template>
+    <div>
+      <h2 class="text-xl font-bold mb-1">Instruksi Pembayaran</h2>
+      <template x-if="timer">
+        <div class="text-xs text-red-600 font-semibold">Kode berlaku <span x-text="timer"></span></div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Payment Info Section -->
+  <div class="mb-6">
+    <!-- VA NUMBER / PAYMENT CODE (BCA/BRI/BNI/Indomaret/Alfamart) -->
+    <template x-if="va_number || payment_code">
+      <div class="flex flex-col items-center bg-blue-50 rounded-xl p-6 mb-4 shadow-inner">
+        <div class="font-semibold text-gray-700 mb-1">
+          Kode Pembayaran
+          <span x-show="payment_method_label" class="ml-1 text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full" x-text="payment_method_label"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="font-mono text-2xl bg-white px-4 py-2 rounded-xl border-2 border-blue-200 tracking-widest select-all" x-text="va_number || payment_code"></span>
+          <button @click="copyToClipboard(va_number || payment_code)" class="ml-2 bg-blue-500 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm focus:outline-none flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 16h8a2 2 0 002-2V8m-2 10H6a2 2 0 01-2-2V6a2 2 0 012-2h7l5 5v9a2 2 0 01-2 2z"></path></svg>
+            Salin
+          </button>
+        </div>
+        <div class="mt-2 text-xs text-gray-500">Tunjukkan/salin kode ke aplikasi/ATM/kasir sesuai instruksi di bawah.</div>
+      </div>
+    </template>
+
+    <!-- QRIS -->
+    <template x-if="qr_url">
+      <div class="flex flex-col items-center bg-blue-50 rounded-xl p-6 mb-4 shadow-inner">
+        <div class="font-semibold text-gray-700 mb-2">Scan QR untuk Bayar</div>
+        <img :src="qr_url" class="w-44 h-44 object-contain rounded-lg shadow border" alt="QRIS">
+        <div class="mt-2 text-xs text-gray-500">Scan QRIS dengan e-wallet/MBanking favoritmu.</div>
+      </div>
+    </template>
+
+    <!-- Payment Link/Redirect -->
+    <template x-if="redirect_url && !va_number && !qr_url && !payment_code">
+      <div class="flex flex-col items-center bg-blue-50 rounded-xl p-6 mb-4 shadow-inner">
+        <div class="font-semibold text-gray-700 mb-2">Lanjutkan Pembayaran</div>
+        <a :href="redirect_url" target="_blank" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl text-lg font-bold shadow transition">Bayar Sekarang</a>
+        <div class="mt-2 text-xs text-gray-500">Klik tombol di atas untuk menyelesaikan pembayaran di aplikasi terkait.</div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Status -->
+  <div class="mb-5">
+    <span class="inline-block bg-gray-100 px-3 py-1 rounded-full text-xs font-semibold text-gray-600">
+      Status: <span x-text="payment_status"></span>
+    </span>
+  </div>
+
+  <!-- Instruksi Dinamis -->
+  <div class="bg-white border rounded-2xl p-5 shadow text-sm mb-2">
+    <template x-if="payment_method && payment_method.startsWith('bca')">
+      <ol class="list-decimal pl-6">
+        <li>Login ke m-BCA/ATM BCA.</li>
+        <li>Pilih menu <b>Pembayaran Virtual Account</b>.</li>
+        <li>Masukkan kode di atas sebagai <b>No. Virtual Account</b>.</li>
+        <li>Ikuti instruksi & selesaikan pembayaran.</li>
+      </ol>
+    </template>
+    <template x-if="payment_method && payment_method === 'indomaret'">
+      <ol class="list-decimal pl-6">
+        <li>Kunjungi kasir <b>Indomaret</b> terdekat.</li>
+        <li>Beritahu ingin membayar <b>e-commerce (Midtrans)</b>.</li>
+        <li>Tunjukkan <b>Kode Pembayaran</b> di atas ke kasir.</li>
+        <li>Selesaikan pembayaran, simpan struk bukti pembayaran.</li>
+      </ol>
+    </template>
+    <template x-if="payment_method && payment_method === 'alfamart'">
+      <ol class="list-decimal pl-6">
+        <li>Kunjungi kasir <b>Alfamart</b> terdekat.</li>
+        <li>Beritahu ingin membayar <b>e-commerce (Midtrans)</b>.</li>
+        <li>Tunjukkan <b>Kode Pembayaran</b> di atas ke kasir.</li>
+        <li>Selesaikan pembayaran, simpan struk bukti pembayaran.</li>
+      </ol>
+    </template>
+    <template x-if="payment_method && payment_method === 'qris'">
+      <ul class="list-disc pl-6">
+        <li>Buka aplikasi e-wallet/MBanking.</li>
+        <li>Pilih menu <b>Scan QR</b>.</li>
+        <li>Scan kode QR di atas, lalu konfirmasi pembayaran.</li>
+      </ul>
+    </template>
+    <template x-if="payment_method && payment_method === 'gopay'">
+      <ul class="list-disc pl-6">
+        <li>Buka aplikasi <b>Gopay</b> di smartphone kamu.</li>
+        <li>Ikuti link/tombol pembayaran, konfirmasi transaksi.</li>
+      </ul>
+    </template>
+    <!-- Tambah instruksi payment lain jika perlu -->
+  </div>
+
+  <!-- Tips/Reminder -->
+  <div class="mt-3 text-xs text-gray-500 italic text-center">
+    Jika pembayaran belum selesai dalam 15 menit, kode akan hangus.<br>
+    Jika ada kendala, silakan hubungi <a href="/help" class="underline text-blue-500">Customer Service</a>.
+  </div>
+</div>
+
+<!-- Copy to clipboard helper -->
+<script>
+function copyToClipboard(val) {
+  navigator.clipboard.writeText(val);
+  alert("Kode berhasil disalin!");
+}
+window.copyToClipboard = copyToClipboard; // agar bisa dipanggil dari Alpine
+</script>
+
+ <!-- STEP 4: Sukses -->
+<div x-show="step === 4" class="flex justify-center px-2">
+  <div class="bg-white shadow-md rounded-2xl p-8 border-t-4 border-green-400 max-w-lg w-full text-center mx-auto">
+    <svg class="w-20 h-20 text-green-500 mb-4 animate-bounce mx-auto" fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="white"/>
+      <path stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M8 12l2.5 2.5L16 9"/>
+    </svg>
+    <h2 class="text-green-600 text-3xl font-extrabold mb-2 tracking-tight">Pembayaran Berhasil!</h2>
+    <p class="text-base text-gray-700 mb-4">Terima kasih, pesanan Anda telah berhasil dibayar.<br>Pesanan akan segera diproses oleh restoran.</p>
+
+    <div class="bg-gray-50 rounded-xl px-6 py-4 mb-4 shadow-sm flex flex-col gap-2 items-center">
+      <div class="text-sm"><b>Nomor Order:</b> #{{ order_id }}</div>
+      <div class="text-sm"><b>Total:</b> Rp {{ cart_total|floatformat:0 }}</div>
+      <div class="text-sm"><b>Metode Pembayaran:</b> <span class="capitalize" x-text="payment_method_label || payment_method"></span></div>
+      <div class="w-full border-t pt-2 mt-2 text-left">
+        <b>Ringkasan Produk:</b>
+        <ul class="mt-1 space-y-1">
+          {% for item in cart.items.all %}
+          <li class="flex items-center gap-2">
+            <img src="{{ item.product.image.url }}" class="w-8 h-8 rounded-md object-cover border" alt="">
+            <span class="flex-1">{{ item.product.name }} x {{ item.qty }}</span>
+            <span class="font-semibold">Rp {{ item.product.price|floatformat:0 }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    <div class="flex gap-3 justify-center mt-4">
+      <a href="/" class="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 rounded-xl shadow font-semibold">Kembali ke Beranda</a>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+function checkoutFlow() {
+  return {
+    step: 1,
+    payment_method: '',
+    order_id: null,
+    va_number: '',
+    qr_url: '',
+    redirect_url: '',
+    payment_code: '',
+    payment_status: 'waiting',
+    timer: '',
+    expiredAt: null,
+    payment_method_label: '',
+
+    init() {
+      // Restore step dari URL jika ada
+      const params = new URLSearchParams(window.location.search);
+      const stepParam = params.get('step');
+      const orderIdParam = params.get('order_id');
+      if (stepParam === 'instruction' && orderIdParam) {
+        this.step = 3;
+        this.order_id = orderIdParam;
+        this.fetchPaymentInstruction();
+        setCheckoutStep(this.order_id, 'instruction');
+      }
+    },
+    fetchPaymentInstruction() {
+      fetch(`/checkout/status/${this.order_id}/`)
+        .then(res => res.json())
+        .then(data => {
+          this.payment_status = data.status;
+          this.va_number = data.va_number || '';
+          this.qr_url = data.qr_url || '';
+          this.redirect_url = data.redirect_url || '';
+          this.payment_code = data.payment_code || '';
+          this.payment_method = data.payment_method || '';
+          if (data.created_at) {
+            this.expiredAt = new Date(data.created_at.replace(' ', 'T') + 'Z').getTime() + 15*60*1000;
+            this.startTimer();
+          }
+          if (this.payment_status === 'waiting') {
+            this.pollPaymentStatus();
+          } else if (this.payment_status === 'paid') {
+            this.step = 4;
+            setCheckoutStep(null, 'reset');
+          }
+        });
+    },
+    startTimer() {
+      if (!this.expiredAt) return;
+      setInterval(() => {
+        const now = new Date().getTime();
+        let distance = this.expiredAt - now;
+        if (distance < 0 && this.payment_status !== 'expired' && this.payment_status !== 'paid') {
+          this.payment_status = 'expired';
+          setCheckoutStep(null, 'reset');
+        } else if (distance > 0) {
+          const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+          const s = Math.floor((distance % (1000 * 60)) / 1000);
+          this.timer = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+      }, 1000);
+    },
+    submitPaymentMethod() {
+      // reset state lama, KECUALI payment_method!
+      this.va_number = '';
+      this.qr_url = '';
+      this.redirect_url = '';
+      this.payment_status = 'waiting';
+      this.order_id = null;
+
+      // Jangan reset payment_method di sini, biarkan tetap dari radio yang dipilih user!
+
+      fetch('{% url "checkout_payment_method" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'},
+        body: JSON.stringify({ payment_method: this.payment_method })
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log("Backend Response:", data);
+        this.order_id = data.order_id;
+        this.va_number = data.va_number || '';
+        this.qr_url = data.qr_url || '';
+        this.redirect_url = data.redirect_url || '';
+        this.payment_code = data.payment_code || '';
+        this.payment_method = data.payment_method || '';
+
+        if (!this.va_number && !this.qr_url && !this.redirect_url && !this.payment_code) {
+          alert("Metode pembayaran sedang tidak tersedia atau terjadi kesalahan.");
+          return;
+        }
+
+        this.step = 3;
+        setCheckoutStep(this.order_id, 'instruction');
+        // Patch: pastikan timer expired selalu muncul di step 3 (flow normal)
+        if (data.created_at) {
+          this.expiredAt = new Date(data.created_at.replace(' ', 'T') + 'Z').getTime() + 15*60*1000;
+          this.startTimer();
+        } else {
+          // Fallback: polling status untuk ambil created_at jika belum ada
+          this.fetchPaymentInstruction();
+        }
+        this.pollPaymentStatus();
+      })
+      .catch(error => {
+        console.error("Fetch Error:", error);
+        alert("Terjadi kesalahan, coba lagi.");
+      });
+    },
+    pollPaymentStatus() {
+      // polling status pembayaran, update timer dan status
+      if (this._pollInterval) clearInterval(this._pollInterval);
+      this._pollInterval = setInterval(() => {
+        fetch(`/checkout/status/${this.order_id}/`)
+          .then(res => res.json())
+          .then(data => {
+            this.payment_status = data.status;
+            if (data.created_at) {
+              this.expiredAt = new Date(data.created_at.replace(' ', 'T') + 'Z').getTime() + 15*60*1000;
+            }
+            if (this.payment_status === 'paid') {
+              clearInterval(this._pollInterval);
+              this.step = 4;
+              setCheckoutStep(null, 'reset');
+            }
+            if (this.payment_status === 'expired' || this.payment_status === 'cancelled') {
+              clearInterval(this._pollInterval);
+              setCheckoutStep(null, 'reset');
+            }
+          });
+      }, 3000);
+    }
+  };
+}
+</script>
+{% endblock %}

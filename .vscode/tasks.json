@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "makemigrations orders",
+			"command": "python",
+			"args": [
+				"manage.py",
+				"makemigrations",
+				"orders"
+			]
+		}
+	]
+}
