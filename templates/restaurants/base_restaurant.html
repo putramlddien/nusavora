@@ -107,7 +107,7 @@
             </a>
             <a
               class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
-              href="#"
+              href="{% url 'merchant_orders_incoming' %}"
             >
               <svg
                 class="w-5 h-5"
@@ -123,6 +123,25 @@
                 />
               </svg>
               <span class="mx-4 font-medium">Pesanan Masuk</span>
+            </a>
+            <a
+              class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              href="{% url 'merchant_orders_active' %}"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17 9V7a5 5 0 00-10 0v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2z"
+                />
+              </svg>
+              <span class="mx-4 font-medium">Pesanan Aktif</span>
             </a>
             <a
               class="flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-gray-100"

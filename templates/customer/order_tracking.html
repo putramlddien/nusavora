@@ -1,0 +1,74 @@
+{% extends 'customer/base_customer.html' %}
+{% block content %}
+<div class="container mx-auto py-8">
+  <h2 class="text-2xl font-bold mb-4">Tracking Pesanan Anda</h2>
+  <div id="order-tracking-progress">
+    <!-- Progress bar and order status will be loaded here by JS -->
+  </div>
+  <div id="order-tracking-details" class="mt-6">
+    <!-- Order details will be loaded here by JS -->
+  </div>
+  <div class="mt-6">
+    <button id="cancel-order-btn" class="hidden bg-red-500 text-white px-4 py-2 rounded">Batalkan Pesanan</button>
+  </div>
+</div>
+<script>
+const orderId = new URLSearchParams(window.location.search).get('order_id');
+function fetchOrderStatus() {
+  fetch(`/customer/order/${orderId}/status/`)
+    .then(res => res.json())
+    .then(data => {
+      renderOrderProgress(data);
+      renderOrderDetails(data);
+      if (data.can_be_cancelled) {
+        document.getElementById('cancel-order-btn').classList.remove('hidden');
+      } else {
+        document.getElementById('cancel-order-btn').classList.add('hidden');
+      }
+    });
+}
+function renderOrderProgress(data) {
+  const steps = [
+    { key: 'waiting_payment', label: 'Menunggu Pembayaran' },
+    { key: 'paid', label: 'Dibayar' },
+    { key: 'waiting_confirmation', label: 'Menunggu Konfirmasi Resto' },
+    { key: 'processing', label: 'Diproses' },
+    { key: 'ready_for_pickup', label: 'Siap Diambil' },
+    { key: 'delivering', label: 'Dikirim' },
+    { key: 'completed', label: 'Selesai' },
+    { key: 'cancelled', label: 'Dibatalkan' },
+    { key: 'expired', label: 'Expired' },
+  ];
+  let currentStep = steps.findIndex(s => s.key === data.status || s.key === data.process_status);
+  let html = '<ol class="flex items-center">';
+  steps.forEach((step, idx) => {
+    let active = idx <= currentStep ? 'text-blue-600' : 'text-gray-400';
+    html += `<li class="flex-1 flex flex-col items-center ${active}"><span>${step.label}</span></li>`;
+    if (idx < steps.length - 1) html += '<span class="w-8 h-1 bg-gray-200 mx-2"></span>';
+  });
+  html += '</ol>';
+  document.getElementById('order-tracking-progress').innerHTML = html;
+}
+function renderOrderDetails(data) {
+  let html = `<div><b>Status:</b> ${data.status} / ${data.process_status}</div>`;
+  html += `<div><b>Alamat:</b> ${data.delivery_address || '-'}</div>`;
+  html += `<div><b>Tipe Pengiriman:</b> ${data.delivery_type}</div>`;
+  html += `<div><b>Dibuat:</b> ${data.created_at}</div>`;
+  document.getElementById('order-tracking-details').innerHTML = html;
+}
+document.getElementById('cancel-order-btn').onclick = function() {
+  fetch(`/customer/order/${orderId}/cancel/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert('Pesanan dibatalkan');
+        fetchOrderStatus();
+      } else {
+        alert('Gagal membatalkan pesanan: ' + data.error);
+      }
+    });
+};
+setInterval(fetchOrderStatus, 5000);
+fetchOrderStatus();
+</script>
+{% endblock %}

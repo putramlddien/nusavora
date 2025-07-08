@@ -351,12 +351,19 @@ def checkout_payment_method(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         payment_method = data.get('payment_method')
+        delivery_type = data.get('delivery_type', 'pickup')
+        delivery_address = data.get('delivery_address', '')
         try:
             cart = Cart.objects.get(user=request.user)
         except Cart.DoesNotExist:
             return JsonResponse({'error': 'Cart kosong. Silakan tambahkan produk ke keranjang.'}, status=400)
         if not cart.items.exists():
             return JsonResponse({'error': 'Cart kosong. Silakan tambahkan produk ke keranjang.'}, status=400)
+        # Fallback: jika delivery_type == 'delivery' dan delivery_address kosong, ambil dari session['location']
+        if delivery_type == 'delivery' and not delivery_address:
+            location = request.session.get('location')
+            if location and location.get('address'):
+                delivery_address = location['address']
         # Cegah duplikasi order: cek order waiting_payment saja, JANGAN sentuh order paid/expired
         existing_order = Order.objects.filter(user=request.user, status='waiting_payment').first()
         if existing_order:
@@ -381,7 +388,9 @@ def checkout_payment_method(request):
                 return JsonResponse(response)
         # Buat order baru jika tidak ada yang pending
         try:
-            order, payment, payment_details = create_order_from_cart(cart, payment_method)
+            order, payment, payment_details = create_order_from_cart(
+                cart, payment_method, delivery_type, delivery_address
+            )
             response = {
                 'order_id': order.id,
                 'va_number': payment.va_number,

@@ -3,8 +3,8 @@ from orders.models import Order
 
 class Payment(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('waiting', 'Waiting Payment'),
+        ('pending', 'Pending'),       # Baru dibuat, belum dibayar
+        ('waiting', 'Waiting Payment'),  # Sdh dapat kode bayar/VA, nunggu dibayar
         ('paid', 'Paid'),
         ('expired', 'Expired'),
         ('failed', 'Failed'),
@@ -21,6 +21,5 @@ class Payment(models.Model):
     payment_code = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
     def __str__(self):
         return f"Payment {self.payment_ref} - {self.status}"

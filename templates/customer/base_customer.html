@@ -284,10 +284,17 @@
         </div>
       </a>
 
+
       <!-- LINK PROFIL -->
+
       <a href="#" @click.prevent="openProfileModal" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
         Profil
       </a>
+
+      <!-- LINK TRACKING ORDER CUSTOMER -->
+      {% comment %} <a href="{% url 'customer_order_tracking' %}" class="block px-4 py-2 text-blue-700 hover:bg-blue-100 font-semibold">
+        Tracking Pesanan
+      </a> {% endcomment %}
 
       <!-- LOGOUT -->
       <form method="POST" action="{% url 'logout' %}">

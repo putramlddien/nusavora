@@ -41,6 +41,54 @@ function setCheckoutStep(order_id, step) {
 
 <!-- STEP 1: Ringkasan Order -->
 <div x-show="step === 1" class="bg-white shadow-2xl rounded-2xl p-8 max-w-xl mx-auto">
+  <!-- Pilihan Pickup/Delivery -->
+  <div class="mb-4">
+    <label class="block font-semibold mb-2">Tipe Pengambilan</label>
+    <div class="flex gap-4">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="delivery_type" value="pickup" x-model="delivery_type" class="accent-blue-600" checked>
+        <span>Ambil di Resto</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="delivery_type" value="delivery" x-model="delivery_type" class="accent-blue-600">
+        <span>Delivery</span>
+      </label>
+    </div>
+  </div>
+  <!-- Input alamat jika delivery -->
+  <div class="mb-4" x-show="delivery_type === 'delivery'" x-data="locationFormCheckout()">
+    <label class="block font-semibold mb-2">Alamat Pengantaran <span class="text-red-500">*</span></label>
+    <div class="relative">
+      <input type="text"
+             x-model="address"
+             placeholder="{{ location.address|default:'Masukkan alamat pengantaran atau gunakan lokasi terakhir' }}"
+             @input="searchLocation"
+             @focus="showSuggestions=true"
+             @blur="hideSuggestions"
+             class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+             :required="delivery_type === 'delivery'">
+      <ul x-show="showSuggestions" class="autocomplete-suggestions z-40">
+        <li class="autocomplete-suggestion flex items-center gap-2 font-semibold text-blue-600 hover:bg-blue-50 cursor-pointer"
+            @mousedown.prevent="selectCurrentLocation()">
+          <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke-width="2"></circle>
+            <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+            <path stroke-width="2" d="M12 2v2m0 16v2m10-10h-2M4 12H2"></path>
+          </svg>
+          Gunakan Lokasi Saat Ini
+        </li>
+        <template x-for="(item, idx) in suggestions" :key="idx">
+          <li class="autocomplete-suggestion" @mousedown.prevent="selectSuggestion(item)">
+            <span x-text="item.display_name"></span>
+          </li>
+        </template>
+        <template x-if="address.length >= 3 && suggestions.length == 0">
+          <li class="autocomplete-suggestion text-gray-400 italic">Tidak ada hasil</li>
+        </template>
+      </ul>
+    </div>
+    <div class="text-xs text-gray-500 mt-1">Alamat wajib diisi jika memilih delivery. Anda bisa gunakan lokasi terakhir atau cari alamat baru.</div>
+  </div>
   <!-- Judul + Resto -->
   <div class="mb-6 flex items-center gap-4">
     <img src="{{ cart.restaurant.logo.url|default:'/static/placeholder-restaurant.png' }}" class="w-14 h-14 rounded-2xl object-cover border shadow" alt="{{ cart.restaurant.name }}">
@@ -79,9 +127,8 @@ function setCheckoutStep(order_id, step) {
 
   <!-- Note -->
   <div class="text-xs text-gray-500 italic mb-6 text-center">Periksa kembali pesanan Anda sebelum melanjutkan pembayaran.</div>
-
   <!-- Button -->
-  <button @click="step = 2" class="w-full mt-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition">
+  <button @click="validateStep1()" class="w-full mt-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition">
     <svg fill="none" stroke="currentColor" class="w-6 h-6" stroke-width="2" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
     </svg>
@@ -323,6 +370,8 @@ function checkoutFlow() {
     timer: '',
     expiredAt: null,
     payment_method_label: '',
+    delivery_type: 'pickup',
+    delivery_address: '',
 
     init() {
       // Restore step dari URL jika ada
@@ -336,10 +385,17 @@ function checkoutFlow() {
         setCheckoutStep(this.order_id, 'instruction');
       }
     },
+    validateStep1() {
+      if (this.delivery_type === 'delivery' && !this.delivery_address) {
+        alert('Alamat wajib diisi untuk delivery.');
+        return;
+      }
+      this.step = 2;
+    },
     fetchPaymentInstruction() {
       fetch(`/checkout/status/${this.order_id}/`)
         .then(res => res.json())
-        .then(data => {
+        .then data => {
           this.payment_status = data.status;
           this.va_number = data.va_number || '';
           this.qr_url = data.qr_url || '';
@@ -386,7 +442,11 @@ function checkoutFlow() {
       fetch('{% url "checkout_payment_method" %}', {
         method: 'POST',
         headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'},
-        body: JSON.stringify({ payment_method: this.payment_method })
+        body: JSON.stringify({
+          payment_method: this.payment_method,
+          delivery_type: this.delivery_type,
+          delivery_address: this.delivery_type === 'delivery' ? this.delivery_address : ''
+        })
       })
       .then(res => res.json())
       .then(data => {
@@ -444,6 +504,85 @@ function checkoutFlow() {
       }, 3000);
     }
   };
+}
+</script>
+
+<script>
+function locationFormCheckout() {
+  return {
+    address: '{{ location.address|default:"" }}',
+    lat: {{ location.lat|default:'null' }},
+    lng: {{ location.lng|default:'null' }},
+    suggestions: [],
+    showSuggestions: false,
+    searchLocation() {
+      if (this.address.length < 3) {
+        this.suggestions = [];
+        this.showSuggestions = true;
+        return;
+      }
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.address)}&countrycodes=id`)
+        .then(res => res.json())
+        .then(data => {
+          this.suggestions = data;
+          this.showSuggestions = true;
+        });
+    },
+    selectSuggestion(item) {
+      this.address = item.display_name;
+      this.lat = parseFloat(item.lat);
+      this.lng = parseFloat(item.lon);
+      this.suggestions = [];
+      this.showSuggestions = false;
+      $dispatch('input', this.address); // update parent x-model if needed
+    },
+    selectCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          this.lat = pos.coords.latitude;
+          this.lng = pos.coords.longitude;
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.lat}&lon=${this.lng}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.display_name) {
+                this.address = data.display_name;
+                this.suggestions = [];
+                this.showSuggestions = false;
+                $dispatch('input', this.address);
+              } else {
+                this.address = `${this.lat}, ${this.lng}`;
+                alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
+                this.suggestions = [];
+                this.showSuggestions = false;
+                $dispatch('input', this.address);
+              }
+            })
+            .catch(err => {
+              this.address = `${this.lat}, ${this.lng}`;
+              alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
+              this.suggestions = [];
+              this.showSuggestions = false;
+              $dispatch('input', this.address);
+            });
+        }, () => {
+          alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
+        });
+      } else {
+        alert('Browser Anda tidak mendukung Geolocation.');
+      }
+    },
+    hideSuggestions() {
+      setTimeout(() => { this.showSuggestions = false; }, 200);
+    },
+    init() {
+      // Sync ke parent x-data checkoutFlow
+      this.$watch('address', value => {
+        if (this.$el.closest('[x-data]').__x) {
+          this.$el.closest('[x-data]').__x.$data.delivery_address = value;
+        }
+      });
+    }
+  }
 }
 </script>
 {% endblock %}

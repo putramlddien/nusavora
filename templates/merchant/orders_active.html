@@ -1,0 +1,52 @@
+{% extends 'merchant/base_merchant.html' %}
+{% block content %}
+<h2>Pesanan Aktif</h2>
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Customer</th>
+      <th>Status Proses</th>
+      <th>Status Bayar</th>
+      <th>Aksi</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for order in orders %}
+    <tr>
+      <td>{{ order.id }}</td>
+      <td>{{ order.user }}</td>
+      <td>{{ order.get_process_status_display }}</td>
+      <td>{{ order.get_status_display }}</td>
+      <td>
+        {% if order.process_status == 'waiting_confirmation' %}
+          <form method="post" action="{% url 'merchant_update_order_status' order.id %}">{% csrf_token %}
+            <input type="hidden" name="next_status" value="processing">
+            <button type="submit">Konfirmasi</button>
+          </form>
+        {% elif order.process_status == 'processing' %}
+          <form method="post" action="{% url 'merchant_update_order_status' order.id %}">{% csrf_token %}
+            <input type="hidden" name="next_status" value="ready_for_pickup">
+            <button type="submit">Siap Diambil</button>
+          </form>
+          <form method="post" action="{% url 'merchant_update_order_status' order.id %}">{% csrf_token %}
+            <input type="hidden" name="next_status" value="delivering">
+            <button type="submit">Kirim</button>
+          </form>
+        {% elif order.process_status == 'ready_for_pickup' %}
+          <form method="post" action="{% url 'merchant_update_order_status' order.id %}">{% csrf_token %}
+            <input type="hidden" name="next_status" value="completed">
+            <button type="submit">Selesai (Pickup)</button>
+          </form>
+        {% elif order.process_status == 'delivering' %}
+          <form method="post" action="{% url 'merchant_update_order_status' order.id %}">{% csrf_token %}
+            <input type="hidden" name="next_status" value="completed">
+            <button type="submit">Selesai (Delivery)</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
