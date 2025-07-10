@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from products.models import Category
 from restaurants.models import Restaurant
+from reviews.models import Review
+from django.views.decorators.http import require_POST
 from core.utils import haversine
 from products.models import Product
 from django.contrib.auth.decorators import login_required
@@ -11,6 +13,10 @@ from orders.models import Cart, CartItem, Order
 from orders.services import create_order_from_cart
 from django.db import transaction
 from django.urls import reverse
+from django.core import serializers
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.contenttypes.models import ContentType
+
 
 def landing_page_view(request):
     categories = Category.objects.filter(is_global=True)
@@ -177,20 +183,6 @@ def cart_update_view(request):
         total = sum(item['price'] * item['qty'] for item in items)
         return JsonResponse({'status': 'ok', 'cartCount': sum(i['qty'] for i in items), 'totalPrice': total, 'items': items, 'restaurant_id': cart.restaurant.id})
     return JsonResponse({'error': 'Invalid method'}, status=400)
-
-@login_required
-def order_history_view(request):
-    orders = Order.objects.filter(user=request.user).order_by('-created_at')[:20]
-    data = []
-    for order in orders:
-        data.append({
-            'id': order.id,
-            'created_at': order.created_at.strftime('%d %b %Y %H:%M'),
-            'status': order.status,
-            'payment_status': order.payment_status,
-            'items': [{'menu': item.product.name, 'qty': item.qty} for item in order.items.all()]
-        })
-    return JsonResponse({'orders': data})
 
 @login_required
 def favorite_view(request):
@@ -427,4 +419,82 @@ def checkout_status_poll(request, order_id):
         'payment_method': payment.method,
         'created_at': payment.created_at.strftime('%Y-%m-%d %H:%M:%S') if payment.created_at else None,
         'expired_at': expired_at,
+    })
+
+@login_required
+def order_history_json(request):
+    orders = (
+        Order.objects
+        .filter(user=request.user)
+        .prefetch_related('items__product', 'restaurant')
+        .order_by('-created_at')
+    )
+    order_ct = ContentType.objects.get_for_model(Order)
+    data = []
+    for o in orders:
+        # Cari review untuk order ini oleh user ini
+        review = Review.objects.filter(
+            content_type=order_ct,
+            object_id=o.id,
+            user=request.user,
+            is_approved=True,
+        ).first()
+
+        review_data = None
+        if review:
+            review_data = {
+                'rating': review.rating,
+                'comment': review.comment,
+                'created_at': review.created_at.strftime('%Y-%m-%d %H:%M'),
+            }
+
+        data.append({
+            "id": o.id,
+            "created_at": o.created_at.strftime('%Y-%m-%d %H:%M'),
+            "status": o.status,
+            "payment_status": getattr(o, 'payment_status', None) or (o.payment.status if hasattr(o, 'payment') else None),
+            "restaurant": o.restaurant.name if o.restaurant else None,
+            "items": [
+                {
+                    "menu": item.product.name,
+                    "qty": item.qty,
+                    "price": float(item.product.price)
+                }
+                for item in o.items.all()
+            ],
+            "total_price": float(o.total_price),
+            "payment_method": getattr(o, 'payment_method', None) or (o.payment.method if hasattr(o, 'payment') else None),
+            "address": o.address if hasattr(o, 'address') else None,
+            "review": review_data
+        })
+    return JsonResponse({'orders': data})
+
+@require_POST
+@login_required
+def order_history_review(request):
+    data = json.loads(request.body)
+    order_id = data.get('order_id')
+    rating = int(data.get('rating', 0))
+    comment = data.get('comment', '').strip()
+
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    order_ct = ContentType.objects.get_for_model(Order)
+
+    # Pastikan belum ada review untuk order ini oleh user ini
+    if Review.objects.filter(content_type=order_ct, object_id=order.id, user=request.user).exists():
+        return JsonResponse({'error': 'Order sudah direview.'}, status=400)
+
+    review = Review.objects.create(
+        user=request.user,
+        content_type=order_ct,
+        object_id=order.id,
+        rating=rating,
+        comment=comment,
+        is_approved=True,
+    )
+    return JsonResponse({
+        'status': 'ok',
+        'rating': review.rating,
+        'comment': review.comment,
+        'created_at': review.created_at.strftime('%Y-%m-%d %H:%M')
     })

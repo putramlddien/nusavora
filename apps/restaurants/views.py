@@ -61,8 +61,24 @@ def orders_active_view(request):
 @user_passes_test(is_merchant)
 def orders_incoming_view(request):
     restaurant = get_object_or_404(Restaurant, owner=request.user)
-    orders = Order.objects.filter(restaurant=restaurant, process_status='waiting_confirmation')
-    return render(request, 'merchant/orders_incoming.html', {'orders': orders})
+    orders = Order.objects.filter(
+        restaurant=restaurant,
+        status='paid',
+        process_status='waiting_confirmation'
+    ).order_by('-created_at')
+
+    # DEBUG: Liat di console kalau mau pastikan data ada
+    print("ORDERS INCOMING:", orders.count(), [o.id for o in orders])
+
+    # Bisa kirim all_orders juga buat debug table
+    all_orders = Order.objects.filter(restaurant=restaurant).order_by('-created_at')
+
+    context = {
+        'orders': orders,
+        'all_orders': all_orders,
+        'restaurant': restaurant,
+    }
+    return render(request, 'merchant/orders_incoming.html', context)
 
 @login_required
 @user_passes_test(is_merchant)

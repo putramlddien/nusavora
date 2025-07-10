@@ -16,5 +16,9 @@ class Review(models.Model):
     class Meta:
         unique_together = ('user', 'content_type', 'object_id')  # 1 user 1 review per object
 
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+        ]
+
     def __str__(self):
         return f"{self.user.username} | {self.rating}★ | {self.content_object}"

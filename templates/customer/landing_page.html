@@ -231,3 +231,80 @@
     </div>
 </section>
 {% endblock %}
+<script>
+function locationForm() {
+  return {
+    address: '{{ location.address|default:"" }}',
+    lat: {{ location.lat|default:'null' }},
+    lng: {{ location.lng|default:'null' }},
+    suggestions: [],
+    showSuggestions: false,
+
+    searchLocation() {
+      if (this.address.length < 3) {
+        this.suggestions = [];
+        this.showSuggestions = true;
+        return;
+      }
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.address)}&countrycodes=id`)
+        .then(res => res.json())
+        .then(data => {
+          this.suggestions = data;
+          this.showSuggestions = true;
+        });
+    },
+    selectSuggestion(item) {
+      this.address = item.display_name;
+      this.lat = parseFloat(item.lat);
+      this.lng = parseFloat(item.lon);
+      this.suggestions = [];
+      this.showSuggestions = false;
+    },
+    selectCurrentLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+        this.lat = pos.coords.latitude;
+        this.lng = pos.coords.longitude;
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.lat}&lon=${this.lng}`)
+            .then(res => res.json())
+            .then(data => {
+            if (data && data.display_name) {
+                this.address = data.display_name;
+                this.suggestions = [];
+                this.showSuggestions = false;
+                // Jangan langsung submitLocation di sini, biar user bisa cek dulu
+            } else {
+                this.address = `${this.lat}, ${this.lng}`;
+                alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
+                this.suggestions = [];
+                this.showSuggestions = false;
+            }
+            })
+            .catch(err => {
+            this.address = `${this.lat}, ${this.lng}`;
+            alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
+            this.suggestions = [];
+            this.showSuggestions = false;
+            });
+        }, () => {
+        alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
+        });
+    } else {
+        alert('Browser Anda tidak mendukung Geolocation.');
+    }
+    },
+    hideSuggestions() {
+      setTimeout(() => { this.showSuggestions = false; }, 200);
+    },
+    submitLocation() {
+      // Submit logic: redirect or AJAX, as per your backend
+      // Example: redirect with params
+      let url = `/?address=${encodeURIComponent(this.address)}`;
+      if (this.lat && this.lng) {
+        url += `&lat=${this.lat}&lng=${this.lng}`;
+      }
+      window.location.href = url;
+    }
+  };
+}
+</script>

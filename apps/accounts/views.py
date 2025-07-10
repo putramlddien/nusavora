@@ -9,6 +9,8 @@ from django.contrib.auth import logout
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from .forms import LoginForm
+from orders.models import Order
+from django.contrib.auth.decorators import login_required, user_passes_test
 
 def generate_otp():
     return str(random.randint(100000, 999999))
@@ -96,9 +98,25 @@ def logout_view(request):
     logout(request)
 
     if role == 'merchant':
-        return redirect('merchant_login')
+        return redirect('customer_login')
     elif role == 'customer':
         return redirect('customer_login')
     else:
         return redirect('home')
+
+def is_customer(user):
+    return getattr(user, 'role', None) == 'customer'
+
+@login_required
+@user_passes_test(is_customer)
+def customer_order_history(request):
+    orders = (
+        Order.objects
+        .filter(user=request.user, process_status__in=['completed', 'cancelled', 'expired'])
+        .order_by('-created_at')
+        .select_related('restaurant')
+        .prefetch_related('items__product')
+    )
+    # Untuk drawer global, bisa dikirim via context processor, tapi di sini langsung via view
+    return render(request, 'customer/order_history_drawer.html', {'order_history': orders})
 

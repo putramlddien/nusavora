@@ -56,11 +56,11 @@ function setCheckoutStep(order_id, step) {
     </div>
   </div>
   <!-- Input alamat jika delivery -->
-  <div class="mb-4" x-show="delivery_type === 'delivery'" x-data="locationFormCheckout()">
+  <div class="mb-4" x-show="delivery_type === 'delivery'">
     <label class="block font-semibold mb-2">Alamat Pengantaran <span class="text-red-500">*</span></label>
     <div class="relative">
       <input type="text"
-             x-model="address"
+             x-model="delivery_address"
              placeholder="{{ location.address|default:'Masukkan alamat pengantaran atau gunakan lokasi terakhir' }}"
              @input="searchLocation"
              @focus="showSuggestions=true"
@@ -82,7 +82,7 @@ function setCheckoutStep(order_id, step) {
             <span x-text="item.display_name"></span>
           </li>
         </template>
-        <template x-if="address.length >= 3 && suggestions.length == 0">
+        <template x-if="delivery_address.length >= 3 && suggestions.length == 0">
           <li class="autocomplete-suggestion text-gray-400 italic">Tidak ada hasil</li>
         </template>
       </ul>
@@ -323,7 +323,7 @@ window.copyToClipboard = copyToClipboard; // agar bisa dipanggil dari Alpine
 </script>
 
  <!-- STEP 4: Sukses -->
-<div x-show="step === 4" class="flex justify-center px-2">
+<div x-show="step === 4" class="flex justify-center px-2" x-data="reviewModal()">
   <div class="bg-white shadow-md rounded-2xl p-8 border-t-4 border-green-400 max-w-lg w-full text-center mx-auto">
     <svg class="w-20 h-20 text-green-500 mb-4 animate-bounce mx-auto" fill="none" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="white"/>
@@ -353,6 +353,31 @@ window.copyToClipboard = copyToClipboard; // agar bisa dipanggil dari Alpine
       <a href="/" class="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 rounded-xl shadow font-semibold">Kembali ke Beranda</a>
     </div>
   </div>
+
+  <!-- MODAL REVIEW RATING -->
+  {% if order and order.process_status == 'completed' and not order.review %}
+  <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" style="display: none;" x-transition>
+    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md relative">
+      <button @click="closeModal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+      <h3 class="text-xl font-bold mb-2 text-center">Bagaimana pengalaman Anda?</h3>
+      <div class="flex justify-center mb-4">
+        <template x-for="n in 5" :key="n">
+          <button type="button" @click="rating = n" class="mx-1 focus:outline-none">
+            <svg :class="rating >= n ? 'text-yellow-400' : 'text-gray-300'" class="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z" />
+            </svg>
+          </button>
+        </template>
+      </div>
+      <textarea x-model="comment" rows="3" class="w-full border rounded-lg p-2 mb-4" placeholder="Tulis komentar (opsional)"></textarea>
+      <button @click="submitReview" :disabled="loading || rating === 0" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2">
+        <span x-show="!loading">Kirim Review</span>
+        <span x-show="loading"><svg class="animate-spin h-5 w-5 mr-2 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
+      </button>
+      <div x-show="success" class="mt-3 text-green-600 text-center font-semibold">Terima kasih atas review Anda!</div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 </div>
 
@@ -371,8 +396,69 @@ function checkoutFlow() {
     expiredAt: null,
     payment_method_label: '',
     delivery_type: 'pickup',
-    delivery_address: '',
+    delivery_address: '{{ location.address|default:"" }}',
+    delivery_lat: {{ location.lat|default:'null' }},
+    delivery_lng: {{ location.lng|default:'null' }},
+    suggestions: [],
+    showSuggestions: false,
 
+    // --- Autocomplete methods ---
+    searchLocation() {
+      if (this.delivery_address.length < 3) {
+        this.suggestions = [];
+        this.showSuggestions = true;
+        return;
+      }
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.delivery_address)}&countrycodes=id`)
+        .then(res => res.json())
+        .then(data => {
+          this.suggestions = data;
+          this.showSuggestions = true;
+        });
+    },
+    selectSuggestion(item) {
+      this.delivery_address = item.display_name;
+      this.delivery_lat = parseFloat(item.lat);
+      this.delivery_lng = parseFloat(item.lon);
+      this.suggestions = [];
+      this.showSuggestions = false;
+    },
+    selectCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          this.delivery_lat = pos.coords.latitude;
+          this.delivery_lng = pos.coords.longitude;
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.delivery_lat}&lon=${this.delivery_lng}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.display_name) {
+                this.delivery_address = data.display_name;
+                this.suggestions = [];
+                this.showSuggestions = false;
+              } else {
+                this.delivery_address = `${this.delivery_lat}, ${this.delivery_lng}`;
+                alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
+                this.suggestions = [];
+                this.showSuggestions = false;
+              }
+            })
+            .catch(err => {
+              this.delivery_address = `${this.delivery_lat}, ${this.delivery_lng}`;
+              alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
+              this.suggestions = [];
+              this.showSuggestions = false;
+            });
+        }, () => {
+          alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
+        });
+      } else {
+        alert('Browser Anda tidak mendukung Geolocation.');
+      }
+    },
+    hideSuggestions() {
+      setTimeout(() => { this.showSuggestions = false; }, 200);
+    },
+    // --- End autocomplete ---
     init() {
       // Restore step dari URL jika ada
       const params = new URLSearchParams(window.location.search);
@@ -395,7 +481,7 @@ function checkoutFlow() {
     fetchPaymentInstruction() {
       fetch(`/checkout/status/${this.order_id}/`)
         .then(res => res.json())
-        .then data => {
+        .then(data => {
           this.payment_status = data.status;
           this.va_number = data.va_number || '';
           this.qr_url = data.qr_url || '';
@@ -445,7 +531,9 @@ function checkoutFlow() {
         body: JSON.stringify({
           payment_method: this.payment_method,
           delivery_type: this.delivery_type,
-          delivery_address: this.delivery_type === 'delivery' ? this.delivery_address : ''
+          delivery_address: this.delivery_type === 'delivery' ? this.delivery_address : '',
+          delivery_lat: this.delivery_type === 'delivery' ? this.delivery_lat : null,
+          delivery_lng: this.delivery_type === 'delivery' ? this.delivery_lng : null
         })
       })
       .then(res => res.json())
@@ -506,80 +594,43 @@ function checkoutFlow() {
   };
 }
 </script>
-
 <script>
-function locationFormCheckout() {
+function reviewModal() {
   return {
-    address: '{{ location.address|default:"" }}',
-    lat: {{ location.lat|default:'null' }},
-    lng: {{ location.lng|default:'null' }},
-    suggestions: [],
-    showSuggestions: false,
-    searchLocation() {
-      if (this.address.length < 3) {
-        this.suggestions = [];
-        this.showSuggestions = true;
-        return;
-      }
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.address)}&countrycodes=id`)
-        .then(res => res.json())
-        .then(data => {
-          this.suggestions = data;
-          this.showSuggestions = true;
-        });
-    },
-    selectSuggestion(item) {
-      this.address = item.display_name;
-      this.lat = parseFloat(item.lat);
-      this.lng = parseFloat(item.lon);
-      this.suggestions = [];
-      this.showSuggestions = false;
-      $dispatch('input', this.address); // update parent x-model if needed
-    },
-    selectCurrentLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          this.lat = pos.coords.latitude;
-          this.lng = pos.coords.longitude;
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.lat}&lon=${this.lng}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.display_name) {
-                this.address = data.display_name;
-                this.suggestions = [];
-                this.showSuggestions = false;
-                $dispatch('input', this.address);
-              } else {
-                this.address = `${this.lat}, ${this.lng}`;
-                alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
-                this.suggestions = [];
-                this.showSuggestions = false;
-                $dispatch('input', this.address);
-              }
-            })
-            .catch(err => {
-              this.address = `${this.lat}, ${this.lng}`;
-              alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
-              this.suggestions = [];
-              this.showSuggestions = false;
-              $dispatch('input', this.address);
-            });
-        }, () => {
-          alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
-        });
-      } else {
-        alert('Browser Anda tidak mendukung Geolocation.');
-      }
-    },
-    hideSuggestions() {
-      setTimeout(() => { this.showSuggestions = false; }, 200);
-    },
+    showModal: false,
+    rating: 0,
+    comment: '',
+    loading: false,
+    success: false,
     init() {
-      // Sync ke parent x-data checkoutFlow
-      this.$watch('address', value => {
-        if (this.$el.closest('[x-data]').__x) {
-          this.$el.closest('[x-data]').__x.$data.delivery_address = value;
-        }
+      // Modal muncul otomatis jika order selesai dan belum ada review
+      {% if order and order.process_status == 'completed' and not order.review %}
+      setTimeout(() => { this.showModal = true; }, 500);
+      {% endif %}
+    },
+    closeModal() {
+      this.showModal = false;
+    },
+    submitReview() {
+      if (this.rating === 0) return;
+      this.loading = true;
+      fetch(`/order/{{ order.id }}/review/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: JSON.stringify({ rating: this.rating, comment: this.comment })
+      })
+      .then(res => res.json())
+      .then(data => {
+        this.loading = false;
+        this.success = true;
+        setTimeout(() => { this.showModal = false; }, 1200);
+      })
+      .catch(() => {
+        this.loading = false;
+        alert('Gagal mengirim review. Coba lagi.');
       });
     }
   }

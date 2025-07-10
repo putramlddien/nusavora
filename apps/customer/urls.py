@@ -8,10 +8,13 @@ urlpatterns = [
     path('category/<slug:slug>/', views.restaurants_by_category, name='restaurants_by_category'),
     path('restaurant/<slug:slug>/', views.restaurant_detail_view, name='restaurant_detail'),
     path('cart/update/', views.cart_update_view, name='cart_update'),
-    path('order/history/', views.order_history_view, name='order_history'),
     path('favorite/', views.favorite_view, name='favorite'),
     # --- Checkout stepper ---
-   path('checkout/', views.checkout, name='checkout'),
-path('checkout/payment-method/', views.checkout_payment_method, name='checkout_payment_method'),
-path('checkout/status/<int:order_id>/', views.checkout_status_poll, name='checkout_status_poll'),
+    path('checkout/', views.checkout, name='checkout'),
+    path('checkout/payment-method/', views.checkout_payment_method, name='checkout_payment_method'),
+    path('checkout/status/<int:order_id>/', views.checkout_status_poll, name='checkout_status_poll'),
+
+    # Order history for Alpine.js drawer/modal (JSON, only for customer)
+    path('order-history/json/', views.order_history_json, name='order_history_json'),
+    path('order-history/review/', views.order_history_review, name='order_history_review'),
 ]
