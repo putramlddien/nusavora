@@ -99,10 +99,18 @@
 
   <!-- Icon Favorite tetap kanan -->
   <button
-    @click="$store.cartStore.toggleFavorite({{ product.id }})"
-    class="bg-pink-100 text-pink-600 px-3 py-2 rounded transition"
-    title="Favorite"
-  >❤</button>
+  :class="$store.cartStore.isFavorite({{ product.id }}) ? 'bg-pink-600 text-white' : 'bg-pink-100 text-pink-600'"
+  @click="$store.cartStore.toggleFavorite({{ product.id }})"
+  class="px-3 py-2 rounded transition"
+  :title="$store.cartStore.isFavorite({{ product.id }}) ? 'Hapus dari Favorite' : 'Tambah ke Favorite'"
+>
+  <template x-if="$store.cartStore.isFavorite({{ product.id }})">
+    <span>❤</span>
+  </template>
+  <template x-if="!$store.cartStore.isFavorite({{ product.id }})">
+    <span>♡</span>
+  </template>
+</button>
 </div>
 
             </div>

@@ -9,14 +9,13 @@ from products.models import Product
 from django.contrib.auth.decorators import login_required
 import json
 from datetime import datetime, time
-from orders.models import Cart, CartItem, Order
+from orders.models import Cart, CartItem, Order, OrderItem
 from orders.services import create_order_from_cart
 from django.db import transaction
 from django.urls import reverse
 from django.core import serializers
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.contenttypes.models import ContentType
-
 
 def landing_page_view(request):
     categories = Category.objects.filter(is_global=True)
@@ -429,25 +428,9 @@ def order_history_json(request):
         .prefetch_related('items__product', 'restaurant')
         .order_by('-created_at')
     )
-    order_ct = ContentType.objects.get_for_model(Order)
+    product_ct = ContentType.objects.get_for_model(Product)
     data = []
     for o in orders:
-        # Cari review untuk order ini oleh user ini
-        review = Review.objects.filter(
-            content_type=order_ct,
-            object_id=o.id,
-            user=request.user,
-            is_approved=True,
-        ).first()
-
-        review_data = None
-        if review:
-            review_data = {
-                'rating': review.rating,
-                'comment': review.comment,
-                'created_at': review.created_at.strftime('%Y-%m-%d %H:%M'),
-            }
-
         data.append({
             "id": o.id,
             "created_at": o.created_at.strftime('%Y-%m-%d %H:%M'),
@@ -457,44 +440,78 @@ def order_history_json(request):
             "items": [
                 {
                     "menu": item.product.name,
+                    "product_id": item.product.id,
                     "qty": item.qty,
-                    "price": float(item.product.price)
+                    "price": float(item.product.price),
+                    "review": (
+                        lambda rv: {
+                            "rating": rv.rating,
+                            "comment": rv.comment,
+                            "created_at": rv.created_at.strftime('%d-%m-%Y %H:%M'),
+                            "username": rv.user.full_name,
+                        } if rv else None
+                    )(
+                        Review.objects.filter(
+                            content_type=product_ct,
+                            object_id=item.product.id,
+                            user=request.user,
+                            is_approved=True
+                        ).first()
+                    ),
                 }
                 for item in o.items.all()
             ],
             "total_price": float(o.total_price),
             "payment_method": getattr(o, 'payment_method', None) or (o.payment.method if hasattr(o, 'payment') else None),
             "address": o.address if hasattr(o, 'address') else None,
-            "review": review_data
         })
     return JsonResponse({'orders': data})
 
 @require_POST
 @login_required
-def order_history_review(request):
-    data = json.loads(request.body)
-    order_id = data.get('order_id')
-    rating = int(data.get('rating', 0))
-    comment = data.get('comment', '').strip()
+def review_product(request):
+    order_id = request.POST.get('order_id')
+    product_id = request.POST.get('product_id')
+    rating = int(request.POST.get('rating', 0))
+    comment = request.POST.get('comment', '').strip()
 
-    order = get_object_or_404(Order, id=order_id, user=request.user)
-    order_ct = ContentType.objects.get_for_model(Order)
+    # Validasi order
+    try:
+        order = Order.objects.get(id=order_id, user=request.user, status='paid')
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Order tidak valid'}, status=400)
 
-    # Pastikan belum ada review untuk order ini oleh user ini
-    if Review.objects.filter(content_type=order_ct, object_id=order.id, user=request.user).exists():
-        return JsonResponse({'error': 'Order sudah direview.'}, status=400)
+    # Validasi orderitem (produk tsb memang dibeli dalam order ini)
+    try:
+        order_item = OrderItem.objects.get(order=order, product_id=product_id)
+    except OrderItem.DoesNotExist:
+        return JsonResponse({'error': 'Produk tidak ditemukan di order'}, status=400)
+
+    product = order_item.product
+    content_type = ContentType.objects.get_for_model(Product)
+
+    # Pastikan belum review produk INI di order INI
+    already = Review.objects.filter(
+        user=request.user,
+        content_type=content_type,
+        object_id=product.id,
+        # optionally: you can filter by order too, if you want review per order!
+    ).exists()
+    if already:
+        return JsonResponse({'error': 'Kamu sudah mereview produk ini.'}, status=400)
 
     review = Review.objects.create(
         user=request.user,
-        content_type=order_ct,
-        object_id=order.id,
+        content_type=content_type,
+        object_id=product.id,
         rating=rating,
         comment=comment,
-        is_approved=True,
+        is_approved=True
     )
     return JsonResponse({
         'status': 'ok',
         'rating': review.rating,
         'comment': review.comment,
-        'created_at': review.created_at.strftime('%Y-%m-%d %H:%M')
+        'created_at': review.created_at.strftime('%d-%m-%Y %H:%M'),
+        'username': request.user.full_name,
     })

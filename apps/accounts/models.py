@@ -1,7 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
-
 # ─────────────────────────────────────────────────────────────
 # Custom User Manager
 # ─────────────────────────────────────────────────────────────
@@ -38,6 +37,7 @@ class NusavoraUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+    favorites = models.ManyToManyField('products.Product', related_name='favorited_by', blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['full_name', 'username']  # ➕ tambahkan username

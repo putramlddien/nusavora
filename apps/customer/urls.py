@@ -16,5 +16,5 @@ urlpatterns = [
 
     # Order history for Alpine.js drawer/modal (JSON, only for customer)
     path('order-history/json/', views.order_history_json, name='order_history_json'),
-    path('order-history/review/', views.order_history_review, name='order_history_review'),
+    path('review/product/', views.review_product, name='review_product'),
 ]
