@@ -13,6 +13,7 @@ urlpatterns = [
     path('payments/', include('payments.urls')),
     path('', include('customer.urls')),
     path('recommendations/', include('recommendations.urls')),
+    path('core/', include('core.urls')),
 ]
 # Serve media/static in development
 if settings.DEBUG:

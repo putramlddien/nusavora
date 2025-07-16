@@ -7,6 +7,7 @@ urlpatterns = [
     path('restaurants/nearby/', views.restaurants_nearby_view, name='restaurants_nearby'),
     path('category/<slug:slug>/', views.restaurants_by_category, name='restaurants_by_category'),
     path('restaurant/<slug:slug>/', views.restaurant_detail_view, name='restaurant_detail'),
+    path('product/<int:product_id>/detail-json/', views.product_detail_json, name='product_detail_json'),
     path('cart/update/', views.cart_update_view, name='cart_update'),
     path('favorite/', views.favorite_view, name='favorite'),
     # --- Checkout stepper ---

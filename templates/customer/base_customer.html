@@ -5,7 +5,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Nusavora</title>
   <link rel="icon" href="{% static 'images/nusavora_logo_without_text_white.png' %}">
   <link href="https://cdn.jsdelivr.net/npm/flowbite@2.3.0/dist/flowbite.min.css" rel="stylesheet" />
@@ -57,7 +57,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({ action: 'add', product_id: id, qty })
         }).then(() => {
@@ -70,7 +70,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({ action: 'dec', product_id: id })
         }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
@@ -81,7 +81,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({ action: 'inc', product_id: id })
         }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
@@ -92,7 +92,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({ action: 'remove', product_id: id })
         }).then(() => { this.fetchCart(); window.dispatchEvent(new Event('cart-updated')); });
@@ -133,7 +133,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({ action: 'get' })
         })
@@ -169,7 +169,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({ product_id: id })
         })
@@ -233,6 +233,8 @@
   <link href="{% static 'css/style.css' %}" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
@@ -247,6 +249,14 @@
     [x-data="orderDetailModal()"], [x-data="orderReviewModal()"] {
       z-index: 13000 !important;
       position: fixed !important;
+    }
+
+    #recommendation-cards::-webkit-scrollbar {
+      height: 7px;
+    }
+    #recommendation-cards::-webkit-scrollbar-thumb {
+      background: #e2e8f0;
+      border-radius: 7px;
     }
   </style>
 </head>
@@ -462,20 +472,6 @@
           class="bg-white border border-gray-300 hover:border-blue-400 px-2 py-1 rounded text-xs font-bold text-blue-700 hover:bg-blue-50 transition"
           @click="$store.cartStore.openOrderDetailModal(order)"
         >Detail</button>
-        <!-- Tombol Review -->
-        <template x-if="!order.review">
-          <button
-            class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-1 px-2 rounded-full text-xs"
-            @click="$store.cartStore.openReviewModal(order)"
-          >Beri Review</button>
-        </template>
-        <!-- Sudah Review -->
-        <template x-if="order.review">
-          <div class="text-green-600 text-xs font-semibold flex items-center gap-1">
-            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            Sudah review
-          </div>
-        </template>
       </div>
     </div>
   </div>
@@ -564,8 +560,12 @@
           <span x-text="order.payment_method || '-'"></span>
         </div>
         <div class="mb-1 text-sm" x-show="order.address">
-          <span class="font-semibold text-gray-700">Alamat:</span>
+          <span class="font-semibold text-gray-700">Alamat Restoran:</span>
           <span x-text="order.address"></span>
+        </div>
+        <div class="mb-1 text-sm" x-show="order.delivery_address">
+          <span class="font-semibold text-gray-700">Alamat Pengantaran:</span>
+          <span x-text="order.delivery_address"></span>
         </div>
         <!-- Section Review jika sudah review -->
         <template x-if="order.review">
@@ -679,6 +679,30 @@
   style="min-width:220px;max-width:90vw;"
   x-text="$store.cartStore.toast.message"
 ></div>
+
+<div 
+  x-show="$store.productDetailModal.showProductModal" 
+  x-cloak 
+  style="z-index:20000"
+  class="fixed inset-0 flex items-center justify-center bg-black/40"
+  style="display:none;">
+>
+  <div class="bg-white w-full max-w-xs sm:max-w-sm md:max-w-md rounded-2xl shadow-xl px-5 py-5 fade-in relative">
+    <button @click="$store.productDetailModal.close()" class="absolute top-2 right-3 text-gray-600 text-2xl">&times;</button>
+    <template x-if="$store.productDetailModal.productDetail.id">
+      <div>
+        <img :src="$store.productDetailModal.productDetail.image" class="h-24 w-full object-cover rounded mb-3" alt="">
+        <h2 class="text-xl font-bold mb-1" x-text="$store.productDetailModal.productDetail.name"></h2>
+        <div class="mb-2 text-base text-green-700 font-semibold">Rp <span x-text="$store.productDetailModal.productDetail.price ? $store.productDetailModal.productDetail.price.toLocaleString('id-ID') : '-'"></span></div>
+        <div class="text-gray-600 mb-4 text-sm" x-text="$store.productDetailModal.productDetail.description"></div>
+        <button @click="$store.cartStore.addToCart($store.productDetailModal.productDetail.id, 1, null)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded w-full font-semibold">+ Keranjang</button>
+      </div>
+    </template>
+  </div>
+</div>
+
+
+
 {% block content %}
 
 <!-- CONTAINER -->
@@ -785,134 +809,6 @@ window.addEventListener('pageshow', function(event) {
   }
 });
 </script>
-
-<script>
-function locationForm() {
-  return {
-    address: '{{ location.address|default:"" }}',
-    lat: {{ location.lat|default:'null' }},
-    lng: {{ location.lng|default:'null' }},
-    suggestions: [],
-    showSuggestions: false,
-    map: null,
-    marker: null,
-
-    searchLocation() {
-      if (this.address.length < 3) {
-        this.suggestions = [];
-        this.showSuggestions = true;
-        return;
-      }
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.address)}&countrycodes=id`)
-        .then(res => res.json())
-        .then(data => {
-          this.suggestions = data;
-          this.showSuggestions = true;
-        });
-    },
-
-    selectSuggestion(item) {
-      this.address = item.display_name;
-      this.lat = parseFloat(item.lat);
-      this.lng = parseFloat(item.lon);
-      this.suggestions = [];
-      this.showSuggestions = false;
-      this.updateMap && this.updateMap();
-      // AUTO SUBMIT
-      this.submitLocation();
-    },
-
-    // Lokasi Saat Ini: gunakan reverse geocoding untuk dapat address
-    selectCurrentLocation() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      this.lat = pos.coords.latitude;
-      this.lng = pos.coords.longitude;
-      // Loading state bisa ditambah di sini
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.lat}&lon=${this.lng}`)
-        .then(res => res.json())
-        .then(data => {
-          // LOG HASILNYA DULU
-          console.log('Reverse Geocode Result:', data);
-          // Safety check, jangan langsung pakai display_name
-          if (data && data.display_name) {
-            this.address = data.display_name;
-            this.suggestions = [];
-            this.showSuggestions = false;
-            this.updateMap && this.updateMap();
-            this.submitLocation();
-          } else {
-            // TAMPILKAN LAT LNG SUPAYA USER TAU
-            this.address = `${this.lat}, ${this.lng}`;
-            alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
-            this.suggestions = [];
-            this.showSuggestions = false;
-            this.updateMap && this.updateMap();
-            this.submitLocation();
-          }
-        })
-        .catch(err => {
-          console.error('Reverse Geocode Error:', err);
-          this.address = `${this.lat}, ${this.lng}`;
-          alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
-          this.suggestions = [];
-          this.showSuggestions = false;
-          this.updateMap && this.updateMap();
-          this.submitLocation();
-        });
-    }, () => {
-      alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
-    });
-  } else {
-    alert('Browser Anda tidak mendukung Geolocation.');
-  }
-},
-
-    hideSuggestions() {
-      setTimeout(() => { this.showSuggestions = false; }, 200);
-    },
-
-    submitLocation() {
-      if (!this.lat || !this.lng || !this.address) {
-        alert('Pilih lokasi terlebih dahulu!');
-        return;
-      }
-      fetch('{% url "set_location" %}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: JSON.stringify({ address: this.address, lat: this.lat, lng: this.lng })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.redirect) {
-          window.location.href = data.redirect;
-        } else {
-          window.location.reload();
-        }
-      });
-    },
-
-    updateMap() {
-      if (!this.map) {
-        this.map = L.map(this.$refs.map).setView([this.lat || -6.2, this.lng || 106.8], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(this.map);
-        this.marker = L.marker([this.lat || -6.2, this.lng || 106.8]).addTo(this.map);
-      } else {
-        this.map.setView([this.lat, this.lng], 13);
-        this.marker.setLatLng([this.lat, this.lng]);
-      }
-    },
-
-    init() {
-      if (this.lat && this.lng) { this.updateMap(); }
-    }
-  }
-}
-</script>
-
 <script>
 function orderDetailModal() {
   return {
@@ -950,7 +846,7 @@ function orderDetailModal() {
         const resp = await fetch('/review/product/', {
           method: 'POST',
           headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: formData,
         });
@@ -1005,7 +901,7 @@ function orderReviewModal() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
           },
           body: JSON.stringify({
             order_id: this.order.id,
@@ -1046,6 +942,24 @@ document.addEventListener('alpine:initialized', () => {
       Alpine.store('cartStore').orderReviewModalInstance.open(order);
     };
   }, 0);
+});
+document.addEventListener('alpine:init', () => {
+  Alpine.store('productDetailModal', {
+    showProductModal: false,
+    productDetail: {},
+    openProductDetail(productId) {
+      fetch(`/product/${productId}/detail-json/`)
+        .then(res => res.json())
+        .then(data => {
+          this.productDetail = data;
+          this.showProductModal = true;
+        });
+    },
+    close() {
+      this.showProductModal = false;
+      this.productDetail = {};
+    }
+  });
 });
 </script>
 

@@ -54,6 +54,11 @@ function setCheckoutStep(order_id, step) {
         <span>Delivery</span>
       </label>
     </div>
+    <div x-show="delivery_type === 'pickup'" class="mt-4">
+  <label class="block font-semibold mb-2">Lokasi Restoran</label>
+  <div x-ref="restomap" class="rounded-xl h-64 w-full border shadow-inner"></div>
+</div>
+
   </div>
   <!-- Input alamat jika delivery -->
   <div class="mb-4" x-show="delivery_type === 'delivery'">
@@ -88,9 +93,13 @@ function setCheckoutStep(order_id, step) {
       </ul>
     </div>
     <div class="text-xs text-gray-500 mt-1">Alamat wajib diisi jika memilih delivery. Anda bisa gunakan lokasi terakhir atau cari alamat baru.</div>
+    <div x-show="delivery_type === 'delivery'" class="mt-4">
+  <label class="block font-semibold mb-2">Validasi Lokasi Pengantaran</label>
+  <div x-ref="map" class="rounded-xl h-64 w-full border shadow-inner"></div>
+</div>
   </div>
   <!-- Judul + Resto -->
-  <div class="mb-6 flex items-center gap-4">
+  <div class="mb-6 flex items-center gap-4 mt-4">
     <img src="{{ cart.restaurant.logo.url|default:'/static/placeholder-restaurant.png' }}" class="w-14 h-14 rounded-2xl object-cover border shadow" alt="{{ cart.restaurant.name }}">
     <div>
       <h2 class="text-xl font-bold mb-1">Ringkasan Order</h2>
@@ -145,9 +154,10 @@ function setCheckoutStep(order_id, step) {
       {% for method, label in methods %}
         <label class="relative cursor-pointer group">
           <input type="radio" name="payment_method" x-model="payment_method" value="{{ method }}" class="peer hidden" required>
-          <div class="flex items-center gap-4 rounded-2xl border-2 p-4 transition-all
-                      peer-checked:border-blue-500 peer-checked:bg-blue-50
-                      border-gray-200 hover:border-indigo-400 hover:bg-blue-50 shadow-sm">
+            <div
+              class="flex items-center gap-4 rounded-2xl border-2 p-4 transition-all hover:border-indigo-400 hover:bg-blue-50 shadow-sm"
+              :class="payment_method === '{{ method }}' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'"
+            >
             {% if method == 'bca_va' %}
               <img src="/static/images/bank/bca.svg" class="w-9 h-10 rounded" alt="BCA">
             {% elif method == 'bni_va' %}
@@ -396,9 +406,9 @@ function checkoutFlow() {
     expiredAt: null,
     payment_method_label: '',
     delivery_type: 'pickup',
+    delivery_lat: parseFloat('{{ location.lat|default_if_none:"-6.2" }}'),
+    delivery_lng: parseFloat('{{ location.lng|default_if_none:"106.8" }}'),
     delivery_address: '{{ location.address|default:"" }}',
-    delivery_lat: {{ location.lat|default:'null' }},
-    delivery_lng: {{ location.lng|default:'null' }},
     suggestions: [],
     showSuggestions: false,
 
@@ -428,7 +438,7 @@ function checkoutFlow() {
         navigator.geolocation.getCurrentPosition(pos => {
           this.delivery_lat = pos.coords.latitude;
           this.delivery_lng = pos.coords.longitude;
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.delivery_lat}&lon=${this.delivery_lng}`)
+          fetch(`/core/api/reverse-geocode/?lat=${this.delivery_lat}&lng=${this.delivery_lng}`)
             .then(res => res.json())
             .then(data => {
               if (data && data.display_name) {
@@ -455,11 +465,55 @@ function checkoutFlow() {
         alert('Browser Anda tidak mendukung Geolocation.');
       }
     },
+    updateMap() {
+  // DELIVERY: render map jika lat/lng tersedia
+  if (this.delivery_type === 'delivery' && this.$refs.map) {
+    const lat = this.delivery_lat;
+    const lng = this.delivery_lng;
+
+    // ✅ Hindari error jika lat/lng masih null
+    if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+      console.warn("Koordinat delivery belum tersedia:", lat, lng);
+      return;
+    }
+
+    if (!this.map) {
+      this.map = L.map(this.$refs.map).setView([lat, lng], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(this.map);
+      this.marker = L.marker([lat, lng]).addTo(this.map).bindPopup("Lokasi Anda").openPopup();
+    } else {
+      this.map.setView([lat, lng], 14);
+      this.marker.setLatLng([lat, lng]);
+    }
+  }
+
+  // PICKUP: tetap seperti biasa
+  if (this.delivery_type === 'pickup' && this.$refs.restomap) {
+    const lat = parseFloat('{{ cart.restaurant.latitude|default_if_none:"-6.2" }}');
+    const lng = parseFloat('{{ cart.restaurant.longitude|default_if_none:"106.8" }}');
+    if (!this.restoMap) {
+      this.restoMap = L.map(this.$refs.restomap).setView([lat, lng], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(this.restoMap);
+      this.restoMarker = L.marker([lat, lng]).addTo(this.restoMap);
+    } else {
+      this.restoMap.setView([lat, lng], 14);
+      this.restoMarker.setLatLng([lat, lng]);
+    }
+  }
+},
     hideSuggestions() {
       setTimeout(() => { this.showSuggestions = false; }, 200);
     },
     // --- End autocomplete ---
     init() {
+      this.$watch('delivery_type', () => this.updateMap());
+      this.$watch('delivery_lat', () => this.updateMap());
+      this.$watch('delivery_lng', () => this.updateMap());
+  this.updateMap(); 
       // Restore step dari URL jika ada
       const params = new URLSearchParams(window.location.search);
       const stepParam = params.get('step');

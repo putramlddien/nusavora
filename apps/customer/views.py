@@ -14,8 +14,8 @@ from orders.services import create_order_from_cart
 from django.db import transaction
 from django.urls import reverse
 from django.core import serializers
-from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.contenttypes.models import ContentType
+from customer.models import ProductViewLog, AddToCartLog, PurchaseLog
 
 def landing_page_view(request):
     categories = Category.objects.filter(is_global=True)
@@ -120,6 +120,20 @@ def get_or_create_cart(request, restaurant):
             cart = Cart.objects.create(session_key=session_key, restaurant=restaurant)
     return cart
 
+@login_required
+def product_detail_json(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    # Catat event view di sini!
+    ProductViewLog.objects.create(user=request.user, product=product)
+    return JsonResponse({
+        'id': product.id,
+        'name': product.name,
+        'description': product.description,
+        'price': float(product.price),
+        'image': product.image.url if product.image else '',
+        # Tambahkan info lain jika perlu
+    })
+
 @transaction.atomic
 @login_required
 def cart_update_view(request):
@@ -154,6 +168,8 @@ def cart_update_view(request):
                 cart_item.save()
             else:
                 CartItem.objects.create(cart=cart, product=product, qty=qty)
+            if request.user.is_authenticated:
+                AddToCartLog.objects.create(user=request.user, product=product)
         elif action == 'inc' and cart_item:
             cart_item.qty += 1
             cart_item.save()
@@ -325,6 +341,10 @@ def checkout(request):
         'methods': methods,
     })
 
+    location = request.session.get('location')
+    if location:
+        context['location'] = location
+
     if step == 'instruction':
         order_id = request.GET.get('order_id')
         order = get_object_or_404(Order, id=order_id, user=request.user)
@@ -382,6 +402,13 @@ def checkout_payment_method(request):
             order, payment, payment_details = create_order_from_cart(
                 cart, payment_method, delivery_type, delivery_address
             )
+            from customer.models import PurchaseLog
+            for item in order.items.all():
+                PurchaseLog.objects.create(
+                    user=request.user,
+                    product=item.product,
+                    order=order
+                )
             response = {
                 'order_id': order.id,
                 'va_number': payment.va_number,

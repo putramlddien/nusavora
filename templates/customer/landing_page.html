@@ -4,6 +4,53 @@
 {% block title %}Beranda - Nusavora{% endblock %}
 
 {% block content %}
+<style>
+/* Splide arrows: responsive, nempel pinggir carousel, besar di desktop, kecil di mobile */
+.splide__arrow {
+  background: #FFFFFF;
+  color: black;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  width: 2.5rem;
+  height: 2.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: background 0.2s;
+  opacity: 0.93;
+  z-index: 20;
+}
+.splide__arrow--prev { left: -1.25rem; } /* -20px di luar carousel */
+.splide__arrow--next { right: -1.25rem; }
+
+@media (max-width: 768px) {
+  .splide__arrow { width: 2rem; height: 2rem; }
+  .splide__arrow--prev { left: 0; }
+  .splide__arrow--next { right: 0; }
+}
+.splide__arrow:hover { background: #ffffff; }
+
+
+.splide__slide {
+  transition: transform 0.32s cubic-bezier(.77,0,.18,1), box-shadow 0.25s;
+}
+
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s;
+}
+.faq-answer.open {
+  max-height: 400px; /* atau sesuai kebutuhan */
+  opacity: 1;
+}
+
+/* Glow highlight */
+.faq-active {
+  background: linear-gradient(90deg, #e0f2fe 0%, #f0fdfa 100%);
+  transition: background 0.2s;
+}
+</style>
 <!-- HERO SECTION -->
 <section class="relative bg-cover bg-center bg-no-repeat min-h-[80vh]" style="background-image: url('{% static 'images/landing_page.jpg' %}');">
   <div class="bg-black/28 absolute inset-0"></div>
@@ -11,10 +58,11 @@
     <div class="grid md:grid-cols-5 gap-10 items-center mt-22">
       
       <!-- KIRI: FORM LOKASI (2 dari 5 kolom) -->
-      <div class="md:col-span-2 bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-lg text-gray-800" data-aos="fade-right" x-data="locationForm()">
+      <div class="md:col-span-2 bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-lg text-gray-800" data-aos="fade-right" x-data="locationForm('{{ location.address|escapejs|default:"" }}', {{ location.lat|default:'null' }}, {{ location.lng|default:'null' }})">
         <h1 class="text-lg md:text-xl font-semibold mb-3">Makanannya mau diantar ke mana hari ini?</h1>
         <div class="relative">
   <input type="text"
+         :value="address"
          x-model="address"
          placeholder="{{ location.address|default:'Gunakan lokasi Anda' }}"
          @input="searchLocation"
@@ -54,10 +102,30 @@
       <div class="md:col-span-3 text-center mx-auto" data-aos="fade-left">
   <h1 class="text-4xl md:text-6xl font-extrabold mb-6">Jelajahi Rasa Terbaik dari Nusantara</h1>
   <p class="text-lg md:text-xl mb-6 max-w-xl mx-auto">Temukan makanan favoritmu di restoran terdekat dan nikmati pengalaman kuliner digital bersama <span class="font-bold">Nusavora</span>.</p>
-  <a href="#category" class="inline-block px-6 py-3 text-white bg-blue-700 hover:bg-blue-800 transition rounded-lg" data-aos="zoom-in" data-aos-delay="400">Mulai Jelajah</a>
+  <a href="#category" class="font-semibold inline-block px-6 py-3 text-blue-800 bg-white/90 backdrop-blur-md hover:bg-white/50 transition rounded-lg" data-aos="zoom-in" data-aos-delay="400">Mulai Jelajah</a>
 </div>
 
 
+    </div>
+  </div>
+</section>
+
+<!-- REKOMENDASI UNTUK KAMU -->
+<section id="recommendations" class="pt-10 pb-6 bg-white mt-4">
+  <div class="container mx-auto px-4">
+      <h2 class="text-3xl font-bold text-center mb-8 text-black">Rekomendasi Untuk Kamu</h2>
+    <div id="recommendation-carousel" class="splide" aria-label="Rekomendasi Produk">
+      <div class="splide__track">
+        <ul class="splide__list" id="recommendation-cards">
+          <!-- Card akan diisi oleh JS -->
+        </ul>
+      </div>
+    </div>
+    <div id="recommendation-loader" class="flex gap-8 mb-3">
+      <div class="animate-pulse bg-gray-200 rounded-xl h-44 w-44"></div>
+      <div class="animate-pulse bg-gray-200 rounded-xl h-44 w-44"></div>
+      <div class="animate-pulse bg-gray-200 rounded-xl h-44 w-44"></div>
+      <div class="animate-pulse bg-gray-200 rounded-xl h-44 w-44"></div>
     </div>
   </div>
 </section>
@@ -101,7 +169,7 @@
         </p>
 
         <div class="mt-6">
-            <a href="#" class="inline-flex items-center justify-center w-full px-4 py-2.5 overflow-hidden text-sm text-white transition-colors duration-300 bg-gray-800 rounded-lg shadow sm:w-auto sm:mx-2 hover:bg-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 focus:ring focus:ring-gray-300 focus:ring-opacity-80">
+            <a href="#" class="inline-flex items-center justify-center w-full px-4 py-2.5 overflow-hidden text-sm text-black transition-colors duration-300 bg-white/90 backdrop-blur-md rounded-lg shadow sm:w-auto sm:mx-2 hover:bg-gray-400 focus:ring focus:ring-gray-300 focus:ring-opacity-80">
                 <svg class="w-5 h-5 mx-2 fill-current" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 512 512" xml:space="preserve">
                     <g>
                         <g>
@@ -145,100 +213,278 @@
     </div>
 </section>
 
-<section class="bg-white dark:bg-gray-900 mb-8">
-    <div class="container px-6 py-12 mx-auto">
-        <h1 class="text-2xl font-semibold text-center text-gray-800 lg:text-2xl dark:text-white">Have any Questions?</h1>
-
-        <div class="mt-8 xl:mt-16 lg:flex lg:-mx-12">
-            <div class="lg:mx-12">
-                <h1 class="text-xl font-semibold text-gray-800 dark:text-white">Table of Content</h1>
-
-                <div class="mt-4 space-y-4 lg:mt-8">
-                    <a href="#" class="block text-blue-500 dark:text-blue-400 hover:underline">General</a>
-                    <a href="#" class="block text-gray-500 dark:text-gray-300 hover:underline">Trust & Safety</a>
-                    <a href="#" class="block text-gray-500 dark:text-gray-300 hover:underline">Services</a>
-                    <a href="#" class="block text-gray-500 dark:text-gray-300 hover:underline">Billing</a>
-                    <a href="#" class="block text-gray-500 dark:text-gray-300 hover:underline">Office Cleaning</a>
-                </div>
-            </div>
-
-            <div class="flex-1 mt-8 lg:mx-12 lg:mt-0">
-                <div>
-                    <button class="flex items-center focus:outline-none">
-                        <svg class="flex-shrink-0 w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
-
-                        <h1 class="mx-4 text-md text-black">How i can play for my appoinment ?</h1>
-                    </button>
-
-                    <div class="flex mt-8 md:mx-10">
-                        <span class="border border-blue-500"></span>
-
-                        <p class="max-w-3xl px-4 text-gray-500 dark:text-gray-300">
-                            Lorem ipsum dolor sit amet consectetur adipisicing elit. Magni, eum quae. Harum officiis reprehenderit ex quia ducimus minima id provident molestias optio nam vel, quidem iure voluptatem, repellat et ipsa.
-                        </p>
-                    </div>
-                </div>
-
-                <hr class="my-6 border-gray-200 dark:border-gray-700">
-
-                <div>
-                    <button class="flex items-center focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-
-                        <h1 class="mx-4 text-md text-black">What can i expect at my first consultation ?</h1>
-                    </button>
-                </div>
-
-                <hr class="my-6 border-gray-200 dark:border-gray-700">
-
-                <div>
-                    <button class="flex items-center focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-
-                        <h1 class="mx-4 text-md text-black">What are your opening house ?</h1>
-                    </button>
-                </div>
-
-                <hr class="my-6 border-gray-200 dark:border-gray-700">
-
-                <div>
-                    <button class="flex items-center focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-
-                        <h1 class="mx-4 text-md text-black">Do i need a referral ?</h1>
-                    </button>
-                </div>
-
-                <hr class="my-6 border-gray-200 dark:border-gray-700">
-
-                <div>
-                    <button class="flex items-center focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-
-                        <h1 class="mx-4 text-md text-black">Is the cost of the appoinment covered by private health insurance ?</h1>
-                    </button>
-                </div>
-            </div>
+<section class="bg-white dark:bg-gray-900 mb-8" id="faq-section">
+  <div class="container px-6 py-12 mx-auto">
+    <h1 class="text-2xl font-semibold text-center text-black lg:text-2xl mb-8">Pertanyaan-pertanyaan Umum</h1>
+    <div class="mt-8 xl:mt-16 lg:flex lg:-mx-12">
+      <!-- Sidebar Table of Content -->
+      <div class="lg:mx-12 mb-10 lg:mb-0">
+        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Daftar Topik</h2>
+        <div class="mt-4 space-y-4 lg:mt-8">
+          <a href="#faq-general" class="block text-blue-500 hover:underline">Umum</a>
+          <a href="#faq-trust" class="block text-gray-500 hover:underline">Keamanan & Kepercayaan</a>
+          <a href="#faq-services" class="block text-gray-500 hover:underline">Layanan</a>
+          <a href="#faq-billing" class="block text-gray-500 hover:underline">Pembayaran</a>
+          <a href="#faq-account" class="block text-gray-500 hover:underline">Akun & Profil</a>
         </div>
+      </div>
+      <!-- FAQ Content -->
+      <div class="flex-1 lg:mx-12" id="faq-list">
+
+        <!-- Umum -->
+        <div id="faq-general" class="mb-6 rounded-xl">
+          <button class="faq-btn flex items-center w-full py-3 px-2 text-left focus:outline-none transition group rounded-xl">
+            <svg class="flex-shrink-0 w-6 h-6 text-blue-500 transition-transform duration-200 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+            <span class="text-md text-black font-semibold">Apa itu Nusavora?</span>
+            <span class="ml-auto transition-transform duration-200 group-[.active]:rotate-90">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+              </svg>
+            </span>
+          </button>
+          <div class="faq-answer px-6 pb-3 text-gray-600">
+            Nusavora adalah platform digital ekosistem kuliner yang memudahkan kamu menemukan, memesan, dan menikmati berbagai menu makanan dari restoran dan UMKM terbaik di sekitarmu, langsung lewat web.
+          </div>
+        </div>
+        <hr class="my-2 border-gray-200">
+
+        <!-- Keamanan & Kepercayaan -->
+        <div id="faq-trust" class="mb-6 rounded-xl">
+          <button class="faq-btn flex items-center w-full py-3 px-2 text-left focus:outline-none transition group rounded-xl">
+            <svg class="flex-shrink-0 w-6 h-6 text-blue-500 transition-transform duration-200 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+            <span class="text-md text-black font-semibold">Bagaimana keamanan transaksi di Nusavora?</span>
+            <span class="ml-auto transition-transform duration-200 group-[.active]:rotate-90">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+              </svg>
+            </span>
+          </button>
+          <div class="faq-answer px-6 pb-3 text-gray-600">
+            Semua transaksi menggunakan metode pembayaran resmi &amp; aman (transfer bank, QRIS, e-wallet, Indomaret/Alfamart) dengan sistem enkripsi. Data pengguna juga terlindungi dan tidak dibagikan ke pihak ketiga.
+          </div>
+        </div>
+        <hr class="my-2 border-gray-200">
+
+        <!-- Layanan -->
+        <div id="faq-services" class="mb-6 rounded-xl">
+          <button class="faq-btn flex items-center w-full py-3 px-2 text-left focus:outline-none transition group rounded-xl">
+            <svg class="flex-shrink-0 w-6 h-6 text-blue-500 transition-transform duration-200 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+            <span class="text-md text-black font-semibold">Apakah Nusavora melayani pengantaran?</span>
+            <span class="ml-auto transition-transform duration-200 group-[.active]:rotate-90">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+              </svg>
+            </span>
+          </button>
+          <div class="faq-answer px-6 pb-3 text-gray-600">
+            Ya! Kamu bisa pilih “delivery” untuk makanan diantar ke alamatmu, atau “pickup” jika ingin ambil sendiri ke restoran. Cek estimasi jarak &amp; biaya di aplikasi.
+          </div>
+        </div>
+        <hr class="my-2 border-gray-200">
+
+        <!-- Pembayaran -->
+        <div id="faq-billing" class="mb-6 rounded-xl">
+          <button class="faq-btn flex items-center w-full py-3 px-2 text-left focus:outline-none transition group rounded-xl">
+            <svg class="flex-shrink-0 w-6 h-6 text-blue-500 transition-transform duration-200 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+            <span class="text-md text-black font-semibold">Metode pembayaran apa saja yang tersedia?</span>
+            <span class="ml-auto transition-transform duration-200 group-[.active]:rotate-90">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+              </svg>
+            </span>
+          </button>
+          <div class="faq-answer px-6 pb-3 text-gray-600">
+            Kami mendukung berbagai metode pembayaran seperti Virtual Account (BCA, BNI, BRI, Permata), QRIS, GoPay, serta Indomaret &amp; Alfamart.
+          </div>
+        </div>
+        <hr class="my-2 border-gray-200">
+
+        <!-- Akun & Profil -->
+        <div id="faq-account" class="mb-6 rounded-xl">
+          <button class="faq-btn flex items-center w-full py-3 px-2 text-left focus:outline-none transition group rounded-xl">
+            <svg class="flex-shrink-0 w-6 h-6 text-blue-500 transition-transform duration-200 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+            <span class="text-md text-black font-semibold">Bagaimana cara mengganti alamat atau profil?</span>
+            <span class="ml-auto transition-transform duration-200 group-[.active]:rotate-90">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+              </svg>
+            </span>
+          </button>
+          <div class="faq-answer px-6 pb-3 text-gray-600">
+            Masuk ke menu profil & klik “Edit Profil”. Kamu bisa mengganti nama, alamat pengantaran, dan data lain langsung di halaman profil.
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 </section>
-{% endblock %}
 <script>
-function locationForm() {
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.faq-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const wrap = btn.parentElement;
+      const answer = wrap.querySelector('.faq-answer');
+
+      // Tutup semua yg lain
+      document.querySelectorAll('.faq-answer').forEach(a => {
+        if (a !== answer) {
+          a.classList.remove('open');
+          a.parentElement.classList.remove('faq-active');
+          a.parentElement.querySelector('.faq-btn').classList.remove('active');
+        }
+      });
+
+      // Toggle yang diklik
+      answer.classList.toggle('open');
+      btn.classList.toggle('active');
+      wrap.classList.toggle('faq-active', answer.classList.contains('open'));
+      // Scroll ke tengah jika dibuka
+      if (answer.classList.contains('open')) {
+        setTimeout(() => {
+          wrap.scrollIntoView({behavior:'smooth', block:'center'});
+        }, 300);
+      }
+    });
+  });
+
+  // TOC smooth scroll & auto open
+  document.querySelectorAll('[href^="#faq-"]').forEach(link => {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        const btn = target.querySelector('.faq-btn');
+        if (!btn.classList.contains('active')) btn.click();
+      }
+    });
+  });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Splide akan diinisialisasi setelah card sudah render
+  const loader = document.getElementById('recommendation-loader');
+  const cardsContainer = document.getElementById('recommendation-cards');
+  loader.style.display = 'flex';
+  cardsContainer.innerHTML = '';
+
+  const RECOMMENDATION_API_BASE = "{{ RECOMMENDATION_API_BASE }}";
+  fetch(RECOMMENDATION_API_BASE + '/recommendations/api/recommendations/?top_k=12', {
+    credentials: 'include'
+  })
+    .then(res => {
+      if (!res.ok) throw new Error('Not logged in or CORS problem');
+      return res.json();
+    })
+    .then(data => {
+      loader.style.display = 'none';
+      cardsContainer.innerHTML = "";
+      if (!data.recommendations || data.recommendations.length === 0) {
+        cardsContainer.innerHTML = '<li class="text-gray-400 italic">Belum ada rekomendasi produk untukmu.</li>';
+        return;
+      }
+      data.recommendations.forEach(prod => {
+        const imgUrl = prod.image || '/static/images/default_product.jpg';
+        const restoLink = prod.restaurant_slug ? `/restaurant/${prod.restaurant_slug}/` : '#';
+        const badge = prod.is_best_seller ? '<span class="bg-yellow-400 text-white text-xs rounded-full px-2 py-0.5 absolute top-2 right-2 shadow">Bestseller</span>' : '';
+        const rating = prod.avg_rating
+          ? `<span class="text-yellow-400 flex items-center gap-1 font-bold"><svg class="w-4 h-4 inline" fill="currentColor"><use xlink:href="#star" /></svg> ${prod.avg_rating.toFixed(1)}</span>`
+          : '';
+        const distance = prod.distance ? `<span class="ml-2 bg-blue-100 text-blue-800 text-xs rounded px-2 py-0.5">${prod.distance} km</span>` : '';
+        const desc = prod.category ? `<span class="block text-xs text-gray-500">${prod.category}</span>` : '';
+
+        // CARD LAYOUT MIRIP DETAIL RESTO
+        const card = document.createElement('li');
+        card.className = `
+          splide__slide bg-white shadow hover:shadow-lg flex flex-col justify-between 
+          transition border border-gray-100 group
+          min-w-[220px] max-w-[260px] w-full mx-auto relative
+        `.replace(/\s+/g, ' ');
+
+        card.innerHTML = `
+        <div class="relative -mx-4">
+      <img src="${imgUrl}" alt="${prod.name}" class="h-36 w-full object-cover mb-2 transition group-hover:scale-105 duration-200" loading="lazy">
+      ${badge}
+    </div>
+  <div class="px-4 pb-2 pt-1">
+    <h3 class="font-semibold text-base md:text-lg mb-1 mt-1 text-gray-900 line-clamp-2 min-h-[40px]">${prod.name}</h3>
+    <div class="flex items-center mb-1">
+      <div class="flex items-center gap-1 text-yellow-400">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"/>
+        </svg>
+        <span class="font-bold text-sm">${prod.avg_rating ? prod.avg_rating.toFixed(1) : '-'}</span>
+      </div>
+      <span class="ml-auto flex items-center">${distance}</span>
+    </div>
+    ${desc}
+    <div class="font-bold text-blue-700 text-lg mb-1">Rp ${prod.price ? prod.price.toLocaleString('id-ID') : '-'}</div>
+    <div class="text-xs text-gray-500 mb-2">di <a href="${restoLink}" class="hover:underline font-semibold">${prod.restaurant_name || '-'}</a></div>
+  </div>
+  <button onclick="handleProductToResto('${prod.restaurant_slug}', '${restoLink}', ${prod.id})"
+    class="w-full bg-blue-700 hover:bg-blue-800 text-white py-2 font-semibold transition text-sm mt-auto group"
+    data-productname="${prod.name}" data-restoname="${prod.restaurant_name || ''}">
+    Lihat Detail
+  </button>
+`;
+        cardsContainer.appendChild(card);
+      });
+
+      // Inisialisasi Splide setelah cards dimasukkan
+      new Splide('#recommendation-carousel', {
+        type: 'loop',
+        perPage: 4,
+        perMove: 1, // GESER 1!
+        gap: '1.5rem',
+        breakpoints: {
+          1024: { perPage: 3 },
+          768: { perPage: 2 },
+          480: { perPage: 1 }
+        },
+        pagination: false,
+        arrows: true,
+        drag: true,
+        keyboard: 'global',
+        speed: 480, // Lebih smooth
+        easing: 'cubic-bezier(.77,0,.18,1)', // Soft easing
+      }).mount();
+    })
+    .catch(e => {
+      loader.style.display = 'none'; // HIDE loader juga saat error
+      cardsContainer.innerHTML = '<li class="text-red-500 italic">Gagal ambil rekomendasi. Coba login dulu.</li>';
+      console.error('Error fetching recommendations:', e);
+    });
+});
+function handleProductToResto(slug, restoLink, productId) {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="animate-pulse">Menuju resto...</span>';
+  btn.classList.add('bg-green-600');
+  setTimeout(() => {
+    window.location.href = restoLink + '?product_id=' + productId;
+  }, 600);
+}
+</script>
+<script>
+function locationForm(initialAddress = '', initialLat = null, initialLng = null) {
   return {
-    address: '{{ location.address|default:"" }}',
-    lat: {{ location.lat|default:'null' }},
-    lng: {{ location.lng|default:'null' }},
+    address: initialAddress,
+    lat: initialLat,
+    lng: initialLng,
     suggestions: [],
     showSuggestions: false,
+    map: null,
+    marker: null,
 
     searchLocation() {
       if (this.address.length < 3) {
@@ -253,58 +499,109 @@ function locationForm() {
           this.showSuggestions = true;
         });
     },
+
     selectSuggestion(item) {
       this.address = item.display_name;
       this.lat = parseFloat(item.lat);
       this.lng = parseFloat(item.lon);
       this.suggestions = [];
       this.showSuggestions = false;
+      this.updateMap && this.updateMap();
+      // AUTO SUBMIT
+      this.submitLocation();
     },
+
+    // Lokasi Saat Ini: gunakan reverse geocoding untuk dapat address
     selectCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-        this.lat = pos.coords.latitude;
-        this.lng = pos.coords.longitude;
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.lat}&lon=${this.lng}`)
-            .then(res => res.json())
-            .then(data => {
-            if (data && data.display_name) {
-                this.address = data.display_name;
-                this.suggestions = [];
-                this.showSuggestions = false;
-                // Jangan langsung submitLocation di sini, biar user bisa cek dulu
-            } else {
-                this.address = `${this.lat}, ${this.lng}`;
-                alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
-                this.suggestions = [];
-                this.showSuggestions = false;
-            }
-            })
-            .catch(err => {
-            this.address = `${this.lat}, ${this.lng}`;
-            alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      this.lat = pos.coords.latitude;
+      this.lng = pos.coords.longitude;
+      fetch(`/core/api/reverse-geocode/?lat=${this.lat}&lng=${this.lng}`)
+        .then(res => res.json())
+        .then(data => {
+          console.log('Reverse Geocode Result:', data);
+          if (data && data.display_name) {
+            this.address = data.display_name;
             this.suggestions = [];
             this.showSuggestions = false;
-            });
-        }, () => {
-        alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
+            this.updateMap && this.updateMap();
+            setTimeout(() => this.submitLocation(), 100); // Delay submit!
+          } else {
+            this.address = `${this.lat}, ${this.lng}`;
+            alert('Tidak bisa mendapatkan alamat yang detail dari lokasi Anda, menggunakan koordinat saja.');
+            this.suggestions = [];
+            this.showSuggestions = false;
+            this.updateMap && this.updateMap();
+            setTimeout(() => this.submitLocation(), 100);
+          }
+        })
+        .catch(err => {
+          console.error('Reverse Geocode Error:', err);
+          this.address = `${this.lat}, ${this.lng}`;
+          alert('Gagal mendapatkan alamat lokasi Anda, menggunakan koordinat saja.');
+          this.suggestions = [];
+          this.showSuggestions = false;
+          this.updateMap && this.updateMap();
+          setTimeout(() => this.submitLocation(), 100);
         });
-    } else {
-        alert('Browser Anda tidak mendukung Geolocation.');
-    }
-    },
+    }, () => {
+      alert('Tidak bisa mengambil lokasi saat ini. Pastikan akses lokasi aktif.');
+    });
+  } else {
+    alert('Browser Anda tidak mendukung Geolocation.');
+  }
+},
+
     hideSuggestions() {
       setTimeout(() => { this.showSuggestions = false; }, 200);
     },
+
     submitLocation() {
-      // Submit logic: redirect or AJAX, as per your backend
-      // Example: redirect with params
-      let url = `/?address=${encodeURIComponent(this.address)}`;
-      if (this.lat && this.lng) {
-        url += `&lat=${this.lat}&lng=${this.lng}`;
+      if (!this.lat || !this.lng || !this.address) {
+        alert('Pilih lokasi terlebih dahulu!');
+        return;
       }
-      window.location.href = url;
+      fetch('{% url "set_location" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({ address: this.address, lat: this.lat, lng: this.lng })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.redirect) {
+          window.location.href = data.redirect;
+        } else {
+          window.location.reload();
+        }
+      });
+    },
+
+    updateMap() {
+  if (!this.$refs.map) {
+    // Tidak ada container map, jadi skip saja
+    return;
+  }
+  if (!this.map) {
+    this.map = L.map(this.$refs.map).setView([this.lat || -6.2, this.lng || 106.8], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(this.map);
+    this.marker = L.marker([this.lat || -6.2, this.lng || 106.8]).addTo(this.map);
+  } else {
+    this.map.setView([this.lat, this.lng], 13);
+    this.marker.setLatLng([this.lat, this.lng]);
+  }
+},
+
+    init() {
+      if (this.lat && this.lng) { this.updateMap(); }
     }
-  };
+  }
 }
 </script>
+
+{% endblock %}
