@@ -3,8 +3,8 @@ from orders.models import Order
 
 class Payment(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pending'),       # Baru dibuat, belum dibayar
-        ('waiting', 'Waiting Payment'),  # Sdh dapat kode bayar/VA, nunggu dibayar
+        ('pending', 'Pending'),
+        ('waiting', 'Waiting Payment'),
         ('paid', 'Paid'),
         ('expired', 'Expired'),
         ('failed', 'Failed'),

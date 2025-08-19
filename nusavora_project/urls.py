@@ -6,7 +6,6 @@ from apps.customer.views import landing_page_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # URL accounts: login, register, OTP
     path('accounts/', include('accounts.urls')),
     path('merchant/restaurant/', include('restaurants.urls')),
     path('merchant/products/', include('products.urls')),
@@ -15,6 +14,6 @@ urlpatterns = [
     path('recommendations/', include('recommendations.urls')),
     path('core/', include('core.urls')),
 ]
-# Serve media/static in development
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

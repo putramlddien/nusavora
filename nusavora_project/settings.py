@@ -64,10 +64,6 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'nusavora_project.urls'
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -133,8 +129,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp-relay.brevo.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'nusavoraid@gmail.com'
-EMAIL_HOST_PASSWORD = 'd0X18avBpOVrTFPH'
+EMAIL_HOST_USER = '8fe406002@smtp-brevo.com'
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

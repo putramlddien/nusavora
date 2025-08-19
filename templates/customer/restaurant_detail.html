@@ -53,7 +53,7 @@
             <div class="bg-white hover:shadow-lg flex flex-col justify-between transition" data-product-id="{{ product.id }}">
               <div>
                 {% if product.image %}
-                  <img src="{{ product.image.url }}" class="h-36 w-full object-cover rounded-tr-md mb-3" alt="{{ product.name }}">
+                  <img src="{{ product.image.url }}" class="h-36 w-full object-cover rounded-md mb-3" alt="{{ product.name }}">
                 {% else %}
                   <img src="{% static 'images/default_product.jpg' %}" class="h-36 w-full object-cover rounded-md mb-3" alt="{{ cat.name }}">
                 {% endif %}

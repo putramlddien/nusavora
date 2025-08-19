@@ -21,20 +21,22 @@
       </div>
 
       <!-- Nav toggle -->
-      <div class="flex items-center justify-center mt-4 mb-6">
-        <a
-          href="#"
-          class="w-1/2 pb-2 font-medium text-center text-gray-500 capitalize border-b hover:text-blue-500"
-        >
-          Sign In
-        </a>
-        <a
-          href="{% url 'customer_register' %}"
-          class="w-1/2 pb-2 font-medium text-center text-gray-800 capitalize border-b-2 border-blue-500"
-        >
-          Sign Up
-        </a>
-      </div>
+<div class="flex items-center justify-center mt-4 mb-6">
+  <!-- Sign In = halaman aktif -->
+  <a
+    href="#"
+    class="w-1/2 pb-2 font-medium text-center text-gray-800 capitalize border-b-2 border-blue-500"
+    aria-current="page"
+  >
+    Sign In
+  </a>
+  <a
+    href="{% url 'customer_register' %}"
+    class="w-1/2 pb-2 font-medium text-center text-gray-500 capitalize border-b hover:text-blue-500"
+  >
+    Sign Up
+  </a>
+</div>
 
       <!-- Email -->
       <div class="relative flex items-center mt-4">
@@ -106,7 +108,7 @@
           href="{% url 'customer_register' %}"
           class="text-sm text-blue-500 hover:underline"
         >
-          Don't have an account? Sign up
+          Tidak Punya Akun? Daftar
         </a>
       </div>
     </form>

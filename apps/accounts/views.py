@@ -3,7 +3,7 @@ from django.utils import timezone
 from datetime import timedelta
 from .forms import RegisterForm
 from .models import NusavoraUser, EmailOTP
-from .tasks import send_otp_email  # Celery task
+from django.core.mail import send_mail
 import random
 from django.contrib.auth import logout
 from django.contrib.auth import authenticate, login
@@ -21,7 +21,7 @@ def register_view(request):
         if form.is_valid():
             user = form.save(commit=False)
             user.set_password(form.cleaned_data['password'])
-            user.is_active = False  # Pending OTP
+            user.is_active = False
             user.save()
 
             # Generate OTP
@@ -29,8 +29,22 @@ def register_view(request):
             expires_at = timezone.now() + timedelta(minutes=10)
             EmailOTP.objects.create(user=user, otp_code=otp_code, expires_at=expires_at)
 
-            # Kirim via Brevo async
-            send_otp_email.delay(user.email, otp_code)
+
+            # Kirim email OTP langsung (tanpa celery), tambahkan log sebelum dan sesudah
+            print(f"[DEBUG] Akan mengirim OTP ke {user.email} dengan kode {otp_code}")
+            try:
+                result = send_mail(
+                    subject="Kode OTP Anda untuk Nusavora",
+                    message=f"Kode OTP kamu adalah {otp_code}. Jangan bagikan kode ini ke siapa pun.",
+                    from_email="nusavoraid@gmail.com",
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                )
+                print(f"[DEBUG] Hasil send_mail: {result}")
+            except Exception as e:
+                print("ERROR SEND EMAIL:", e)
+                from django.contrib import messages
+                messages.error(request, f"Gagal mengirim email OTP: {e}")
 
             # Simpan email ke session untuk verifikasi
             request.session['otp_email'] = user.email
@@ -44,7 +58,7 @@ def verify_otp_view(request):
     email = request.session.get('otp_email')
 
     if not email:
-        return redirect('register')  # Jaga-jaga kalau akses langsung
+        return redirect('register')
 
     user = NusavoraUser.objects.filter(email=email).first()
     error = None
@@ -117,6 +131,5 @@ def customer_order_history(request):
         .select_related('restaurant')
         .prefetch_related('items__product')
     )
-    # Untuk drawer global, bisa dikirim via context processor, tapi di sini langsung via view
     return render(request, 'customer/order_history_drawer.html', {'order_history': orders})
 

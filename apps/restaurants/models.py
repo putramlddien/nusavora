@@ -35,7 +35,6 @@ class Restaurant(models.Model):
 
     @property
     def avg_rating(self):
-        # Import di dalam property supaya nggak circular
         from products.models import Product
         product_ct = ContentType.objects.get_for_model(Product)
         product_ids = self.products.values_list('id', flat=True)

@@ -1,9 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
-# ─────────────────────────────────────────────────────────────
-# Custom User Manager
-# ─────────────────────────────────────────────────────────────
 
 class NusavoraUserManager(BaseUserManager):
     def create_user(self, email, password=None, role='customer', **extra_fields):
@@ -18,10 +15,6 @@ class NusavoraUserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         return self.create_user(email, password, role='admin', is_staff=True, is_superuser=True, **extra_fields)
 
-# ─────────────────────────────────────────────────────────────
-# Custom User Model
-# ─────────────────────────────────────────────────────────────
-
 class NusavoraUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('customer', 'Customer'),
@@ -30,7 +23,7 @@ class NusavoraUser(AbstractBaseUser, PermissionsMixin):
     ]
 
     email = models.EmailField(unique=True)
-    username = models.CharField(max_length=50, unique=True)  # ➕ Tambahan baru
+    username = models.CharField(max_length=50, unique=True)
     full_name = models.CharField(max_length=100)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
 
@@ -40,16 +33,12 @@ class NusavoraUser(AbstractBaseUser, PermissionsMixin):
     favorites = models.ManyToManyField('products.Product', related_name='favorited_by', blank=True)
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['full_name', 'username']  # ➕ tambahkan username
+    REQUIRED_FIELDS = ['full_name', 'username']
 
     objects = NusavoraUserManager()
 
     def __str__(self):
         return f"{self.username} ({self.email}) - {self.role}"
-
-# ─────────────────────────────────────────────────────────────
-# OTP Model untuk Registrasi / Login
-# ─────────────────────────────────────────────────────────────
 
 class EmailOTP(models.Model):
     user = models.ForeignKey(NusavoraUser, on_delete=models.CASCADE)

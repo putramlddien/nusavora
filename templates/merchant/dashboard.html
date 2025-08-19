@@ -24,9 +24,9 @@ Dashboard Analitik
 
 <div class="mt-10">
   <div class="bg-white p-6 rounded-xl shadow">
-    <h2 class="text-lg font-semibold mb-4">Statistik Ringkasan</h2>
+    <h2 class="text-lg font-semibold mb-6">Statistik Ringkasan</h2>
     <ul class="text-gray-700 text-sm grid grid-cols-1 md:grid-cols-3 gap-4">
-      <li>Total Penjualan: <strong>Rp {{ total_sales|default:"0" }}</strong></li>
+      <li>Total Penjualan: <strong>Rp. {{ total_sales|default:"0" }}</strong></li>
       <li>Total Produk: <strong>{{ product_count|default:"0" }}</strong></li>
       <li>Restoran Aktif: <strong>{{ restaurant_count|default:"0" }}</strong></li>
     </ul>

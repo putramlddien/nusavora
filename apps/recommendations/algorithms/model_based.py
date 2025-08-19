@@ -13,7 +13,7 @@ def get_recommendations(user_id, top_k=10, threshold=4.0):
     algo = SVD()
     algo.fit(trainset)
 
-    # ✅ Cek apakah user ada di training set
+    # Cek apakah user ada di training set
     try:
         inner_uid = trainset.to_inner_uid(user_id)
     except ValueError:

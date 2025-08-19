@@ -4,7 +4,7 @@ from .algorithms import model_based
 from products.models import Product
 from reviews.models import Review
 from restaurants.models import Restaurant
-from django.db.models import Avg
+from django.db.models import Avg, Count
 from .models import RecommendationCache
 
 @login_required
@@ -17,13 +17,73 @@ def rekomendasi_produk(request):
     if cached.exists():
         result = [(c.product.id, c.score) for c in cached]
     else:
-        result = model_based.get_recommendations(user.id, top_k=top_k)
+        # Coba model_based
+        result = []
+        try:
+            svd_result = model_based.get_recommendations(user.id, top_k=top_k*3)  # ambil lebih banyak untuk filter
+            user_location = request.session.get('location')
+            if user_location:
+                from core.utils import haversine
+                user_lat, user_lng = float(user_location['lat']), float(user_location['lng'])
+                filtered = []
+                for pid, score in svd_result:
+                    try:
+                        prod = Product.objects.select_related('restaurant').get(id=pid)
+                        resto = prod.restaurant
+                        if resto and resto.latitude and resto.longitude:
+                            dist = haversine(user_lat, user_lng, resto.latitude, resto.longitude)
+                            if dist <= 20:
+                                filtered.append((pid, score))
+                        if len(filtered) >= top_k:
+                            break
+                    except Product.DoesNotExist:
+                        continue
+                result = filtered[:top_k]
+            else:
+                result = svd_result[:top_k]
+        except Exception:
+            result = []
 
-    product_ids = [item_id for item_id, _ in result]
-    products_qs = Product.objects.filter(id__in=product_ids).select_related('restaurant', 'category')
+    # Jika tetap kosong, fallback ke produk populer di daerah user
+    if not result:
+        user_location = request.session.get('location')
+        if user_location:
+            from core.utils import haversine
+            user_lat, user_lng = float(user_location['lat']), float(user_location['lng'])
+            # Cari restoran terdekat (misal radius 20km)
+            nearby_restos = []
+            for resto in Restaurant.objects.exclude(latitude__isnull=True).exclude(longitude__isnull=True):
+                if resto.latitude and resto.longitude:
+                    dist = haversine(user_lat, user_lng, resto.latitude, resto.longitude)
+                    if dist <= 20:
+                        nearby_restos.append(resto.id)
+            # Cari produk terlaris di restoran terdekat
+            from orders.models import OrderItem
+            populer = (
+                OrderItem.objects.filter(product__restaurant_id__in=nearby_restos)
+                .values('product')
+                .annotate(total=Count('id'))
+                .order_by('-total')[:top_k]
+            )
+            product_ids = [p['product'] for p in populer]
+            result = [(pid, 0) for pid in product_ids]
+        else:
+            # Jika tidak ada lokasi, fallback ke produk terlaris global
+            from orders.models import OrderItem
+            populer = (
+                OrderItem.objects.values('product')
+                .annotate(total=Count('id'))
+                .order_by('-total')[:top_k]
+            )
+            product_ids = [p['product'] for p in populer]
+            result = [(pid, 0) for pid in product_ids]
+    else:
+        product_ids = [item_id for item_id, _ in result]
+
+    products_qs = Product.objects.filter(id__in=[item_id for item_id, _ in result]).select_related('restaurant', 'category')
 
     ratings = Review.objects.filter(
-        object_id__in=product_ids, is_approved=True
+        object_id__in=[item_id for item_id, _ in result], is_approved=True
     ).values('object_id').annotate(avg_rating=Avg('rating'))
     avg_rating_map = {r['object_id']: r['avg_rating'] for r in ratings}
 

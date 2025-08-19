@@ -40,13 +40,5 @@
 </table>
 
 <hr>
-<h4>DEBUG: Semua order untuk restoran ini</h4>
-<pre style="font-size:12px; background:#f8f8f8; padding:8px; border-radius:6px;">
-{% for order in all_orders %}
-ID: {{ order.id }} | Resto: {{ order.restaurant_id }} | User: {{ order.user }} | process_status: {{ order.process_status }} | status: {{ order.status }}
-{% empty %}
-<b>Tidak ada order sama sekali untuk restoran ini.</b>
-{% endfor %}
-</pre>
 
 {% endblock %}

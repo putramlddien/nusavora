@@ -461,7 +461,7 @@ def order_history_json(request):
         data.append({
             "id": o.id,
             "created_at": o.created_at.strftime('%Y-%m-%d %H:%M'),
-            "status": o.status,
+            "process_status": o.process_status,
             "payment_status": getattr(o, 'payment_status', None) or (o.payment.status if hasattr(o, 'payment') else None),
             "restaurant": o.restaurant.name if o.restaurant else None,
             "items": [
